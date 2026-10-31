@@ -662,6 +662,7 @@ struct ConnectorsPane: View {
                                 Button("Sign In") { Task { await store.signIn(server) } }
                             } else {
                                 HealthBadge(health: server.health, checked: report.checked)
+                                    .help(server.detail)
                             }
                             if server.removable && server.name != "claude-switch" {
                                 Menu {
