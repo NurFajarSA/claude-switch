@@ -118,11 +118,7 @@ struct SettingsView: View {
         }
         .frame(minWidth: 780, minHeight: 540)
         .task { await store.reload() }
-        .onAppear {
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-        }
-        .onDisappear { NSApp.setActivationPolicy(.accessory) }
+        .appWindowPresence()
     }
 
     @ToolbarContentBuilder
@@ -192,6 +188,7 @@ struct AppIconTile: View {
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous).fill(color.gradient))
+            .accessibilityHidden(true)
     }
 }
 
@@ -246,7 +243,9 @@ struct PaneContent: View {
 
 struct GeneralPane: View {
     let store: Store
+    @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = LoginItem.isEnabled
+    @AppStorage(Notifier.enabledKey) private var notificationsEnabled = true
 
     var body: some View {
         Section {
@@ -259,6 +258,20 @@ struct GeneralPane: View {
             })) {
                 Text("Launch at Login")
                 Text("Show Claude Accounts in the menu bar when you log in.")
+            }
+        }
+        Section {
+            Toggle(isOn: $notificationsEnabled) {
+                Text("Notifications")
+                Text("Tell me when the CLI switches accounts, usage reaches the warning level, or a sign-in is about to expire.")
+            }
+        }
+        Section("Setup") {
+            LabeledContent("Setup assistant") {
+                Button("Show Setup Assistant…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "onboarding")
+                }
             }
         }
         Section("Files") {
@@ -314,6 +327,7 @@ struct PercentSlider: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Color.secondary.opacity(0.35)))
+                    .accessibilityHidden(true)
             }
             Slider(value: Binding(get: { draft ?? Double(value) }, set: { draft = $0 }), in: Double(range.lowerBound)...Double(range.upperBound)) {
                 Text(title)
@@ -325,6 +339,7 @@ struct PercentSlider: View {
                 }
             }
             .labelsHidden()
+            .accessibilityValue("\(Int((draft ?? Double(value)).rounded())) percent")
         }
     }
 }
@@ -344,6 +359,7 @@ struct AccountsPane: View {
                         HStack(spacing: 6) {
                             if account.active { StatusBadge(text: "In Use", color: .accentColor) }
                             Text(account.percent.map { "\($0)%" } ?? "–").monospacedDigit()
+                                .accessibilityLabel("\(account.alias), \(usageDescription(account.percent).lowercased())")
                         }
                     } label: {
                         Text(account.alias)
@@ -403,6 +419,7 @@ struct ProfileLink: View {
                 HStack(spacing: 6) {
                     if profile.running { StatusBadge(text: "Open", color: .green) }
                     Text(profile.percent.map { "\($0)%" } ?? "–").monospacedDigit()
+                        .accessibilityLabel("\(profile.label), \(usageDescription(profile.percent).lowercased())")
                 }
             } label: {
                 Text(profile.label)
@@ -442,8 +459,11 @@ struct UsageRows: View {
         ForEach(windows, id: \.self) { window in
             LabeledContent {
                 HStack(spacing: 8) {
-                    ProgressView(value: Double(window.percent), total: 100).frame(width: 90)
-                    Text("\(window.percent)%").monospacedDigit().frame(width: 38, alignment: .trailing)
+                    ProgressView(value: Double(window.percent), total: 100)
+                        .frame(width: 90)
+                        .accessibilityLabel("\(window.label) limit")
+                        .accessibilityValue("\(window.percent) percent used")
+                    Text("\(window.percent)%").monospacedDigit().frame(width: 38, alignment: .trailing).accessibilityHidden(true)
                 }
             } label: {
                 Text(window.label.prefix(1).uppercased() + window.label.dropFirst())

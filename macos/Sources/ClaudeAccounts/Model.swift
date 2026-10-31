@@ -80,16 +80,18 @@ enum AppInfo {
 }
 
 enum CS {
-    static let binary: URL = {
-        let fm = FileManager.default
-        if let override = ProcessInfo.processInfo.environment["CLAUDE_SWITCH_BIN"] { return URL(fileURLWithPath: override) }
-        let installed = fm.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/cs")
-        if fm.isExecutableFile(atPath: installed.path) { return installed }
-        return Bundle.main.url(forResource: "cs", withExtension: nil) ?? installed
-    }()
+    static let installedBinary = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/cs")
+    static let bundledBinary = Bundle.main.url(forResource: "cs", withExtension: nil)
 
-    static func run(_ arguments: [String]) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
+    static var binary: URL {
+        if let override = ProcessInfo.processInfo.environment["CLAUDE_SWITCH_BIN"] { return URL(fileURLWithPath: override) }
+        if FileManager.default.isExecutableFile(atPath: installedBinary.path) { return installedBinary }
+        return bundledBinary ?? installedBinary
+    }
+
+    static func run(_ arguments: [String], using executable: URL? = nil) async throws -> Data {
+        let binary = executable ?? Self.binary
+        return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = binary
