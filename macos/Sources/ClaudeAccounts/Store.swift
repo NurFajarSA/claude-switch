@@ -11,6 +11,7 @@ final class Store {
     var busy = false
     var connectors: ConnectorReport?
     var connectorsChecking = false
+    var signingIn: Set<String> = []
     var listHeight: CGFloat?
     var csInstalled = false
     var daemonInstalled = false
@@ -266,19 +267,40 @@ final class Store {
         await loadConnectors(check: false)
     }
 
-    func signInToServers() {
-        runShellInTerminal("echo 'Type /mcp, pick a server and sign in. Quit with /exit when done.'; echo; claude")
+    func signIn(_ server: McpServerRow) async {
+        signingIn.insert(server.name)
+        defer { signingIn.remove(server.name) }
+        do {
+            _ = try await CS.run(["connectors", "login", server.name])
+        } catch {
+            Dialog.warn(title: "Sign-in to \(server.name) didn’t finish", message: error.localizedDescription)
+        }
+        await loadConnectors(check: true)
     }
 
-    private func runShellInTerminal(_ command: String) {
-        let script = FileManager.default.temporaryDirectory.appendingPathComponent("claude-switch-mcp.command")
-        do {
-            try "#!/bin/zsh -l\n\(command)\n".write(to: script, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
-            NSWorkspace.shared.open(script)
-        } catch {
-            Dialog.warn(title: "Couldn’t open Terminal", message: error.localizedDescription)
+    func signInToAll(_ servers: [McpServerRow]) async {
+        for server in servers {
+            signingIn.insert(server.name)
+            do {
+                _ = try await CS.run(["connectors", "login", server.name])
+            } catch {
+                signingIn.remove(server.name)
+                let keepGoing = Dialog.confirm(
+                    title: "Sign-in to \(server.name) didn’t finish",
+                    message: "\(error.localizedDescription)\n\nContinue with the next server?",
+                    confirm: "Continue",
+                    cancel: "Stop"
+                )
+                if !keepGoing { break }
+            }
+            signingIn.remove(server.name)
         }
+        await loadConnectors(check: true)
+    }
+
+    func signOut(_ server: McpServerRow) async {
+        await perform(["connectors", "logout", server.name])
+        await loadConnectors(check: true)
     }
 
     private func runInTerminal(_ arguments: [String]) {

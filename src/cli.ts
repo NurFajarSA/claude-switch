@@ -249,7 +249,7 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   connectors: {
-    usage: "cs connectors [list [--check] [--json] | import <name…> | import --all | add <name> <url> [--header 'K: V'] | remove <name>]",
+    usage: "cs connectors [list [--check] [--json] | import <name…> | import --all | add <name> <url> | remove <name> | login <name> | logout <name>]",
     summary: "Manage MCP servers on this Mac and bring claude.ai connectors to every account",
     run: async (args) => {
       const [action = "list", ...rest] = args[0]?.startsWith("--") ? ["list", ...args] : args;
@@ -293,8 +293,21 @@ const COMMANDS: Record<string, Command> = {
           await connectors.remove(name);
           return out(`Removed ${name}.`);
         }
+        case "login": {
+          const [name] = positionals;
+          if (!name) throw new UserError("Usage: cs connectors login <name>");
+          out(`Opening the sign-in page for ${name} in your browser…`);
+          await connectors.login(name);
+          return out(`Signed in to ${name}.`);
+        }
+        case "logout": {
+          const [name] = positionals;
+          if (!name) throw new UserError("Usage: cs connectors logout <name>");
+          await connectors.logout(name);
+          return out(`Signed out of ${name}.`);
+        }
         default:
-          throw new UserError(`Unknown action "${action}". Use list, import, add or remove.`);
+          throw new UserError(`Unknown action "${action}". Use list, import, add, remove, login or logout.`);
       }
     },
   },

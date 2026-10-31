@@ -655,9 +655,19 @@ struct ConnectorsPane: View {
                 ForEach(report.servers.filter { $0.origin != "account" }) { server in
                     LabeledContent {
                         HStack(spacing: 8) {
-                            HealthBadge(health: server.health, checked: report.checked)
+                            if store.signingIn.contains(server.name) {
+                                ProgressView().controlSize(.small)
+                                Text("Finish in your browser").font(.caption).foregroundStyle(.secondary)
+                            } else if server.health == "needs_auth" {
+                                Button("Sign In") { Task { await store.signIn(server) } }
+                            } else {
+                                HealthBadge(health: server.health, checked: report.checked)
+                            }
                             if server.removable && server.name != "claude-switch" {
                                 Menu {
+                                    if server.health == "connected" && server.transport == "http" {
+                                        Button("Sign Out") { Task { await store.signOut(server) } }
+                                    }
                                     Button("Remove…", role: .destructive) { Task { await store.removeServer(server) } }
                                 } label: {
                                     Image(systemName: "ellipsis.circle")
@@ -673,9 +683,13 @@ struct ConnectorsPane: View {
                         Text(server.origin == "plugin" ? "From a plugin · \(host(server.target))" : host(server.target))
                     }
                 }
+                let waiting = report.servers.filter { $0.origin == "local" && $0.health == "needs_auth" }
                 HStack {
                     Button("Add Server…") { Task { await store.addServer() } }
-                    Button("Sign In…") { store.signInToServers() }
+                    if !waiting.isEmpty {
+                        Button("Sign In to All (\(waiting.count))") { Task { await store.signInToAll(waiting) } }
+                            .disabled(!store.signingIn.isEmpty)
+                    }
                     Spacer()
                     if store.connectorsChecking { ProgressView().controlSize(.small) }
                     Button(report.checked ? "Check Again" : "Check Status") { Task { await store.loadConnectors(check: true) } }
@@ -711,11 +725,11 @@ struct ConnectorsPane: View {
             } header: {
                 Text("Connectors in your Claude accounts")
             } footer: {
-                Text("After adding, sign in to each one once with Sign In…. Claude Code hides a claude.ai or plugin copy that points at the same URL, so tools don’t show up twice.")
+                Text("After adding, sign in to each one once. Claude Code hides a claude.ai or plugin copy that points at the same URL, so tools don’t show up twice.")
             }
         } else {
             Section { ProgressView().frame(maxWidth: .infinity) }
-                .task { await store.loadConnectors(check: false) }
+                .task { await store.loadConnectors(check: true) }
         }
     }
 

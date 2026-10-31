@@ -18,6 +18,7 @@ import {
 } from "./connectors.ts";
 
 const LIST_TIMEOUT_MS = 90_000;
+const LOGIN_TIMEOUT_MS = 5 * 60_000;
 const Learned = z.object({ version: z.literal(1), claudeOnly: z.array(z.string()) });
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -121,6 +122,16 @@ export class ConnectorManager {
       ...headers.flatMap((h) => ["--header", h]),
     ]);
     if (code !== 0) throw new UserError((stderr || stdout).trim() || `claude mcp add ${name} failed`);
+  }
+
+  async login(name: string): Promise<void> {
+    const { code, stderr, stdout } = await this.deps.run(["mcp", "login", name], LOGIN_TIMEOUT_MS);
+    if (code !== 0) throw new UserError((stderr || stdout).trim() || `Sign-in to ${name} did not finish.`);
+  }
+
+  async logout(name: string): Promise<void> {
+    const { code, stderr, stdout } = await this.deps.run(["mcp", "logout", name]);
+    if (code !== 0) throw new UserError((stderr || stdout).trim() || `claude mcp logout ${name} failed`);
   }
 
   async remove(name: string): Promise<void> {
