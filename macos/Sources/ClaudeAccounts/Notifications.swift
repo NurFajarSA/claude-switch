@@ -33,8 +33,10 @@ enum AlertRules {
               before.id != after.id,
               let previous = new.accounts.first(where: { $0.id == before.id })
         else { return nil }
-        let reason = (previous.percent ?? before.percent).map { "\(before.alias) reached \($0)%" } ?? "\(before.alias) ran low on usage"
-        return UsageAlert(id: "switch", title: "Switched to \(after.alias)", body: reason)
+        guard let percent = previous.percent ?? before.percent, percent >= new.threshold else {
+            return UsageAlert(id: "switch", title: "Switched to \(after.alias)", body: "The CLI and VS Code now use \(after.alias).")
+        }
+        return UsageAlert(id: "switch", title: "Switched to \(after.alias)", body: "\(before.alias) reached \(percent)%")
     }
 
     static func crossedWarning(from old: Overview, to new: Overview) -> [UsageAlert] {

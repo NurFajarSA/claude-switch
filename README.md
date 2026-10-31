@@ -84,9 +84,11 @@ Measured on Claude Code 2.1: a CLI login lasts about 28 days from sign-in, and r
 
 **Menu bar.** Click the gauge for a Control Center style panel. Each Desktop profile and CLI account is a row with its usage. Click a Desktop row to open or show that window; click a CLI row to use that account. Right-click a row to rename it or move a recent session into it. Profiles whose account is not registered with `cs add` sit under "Other Profiles". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
 
+**First run and notifications.** The first time the app opens without the background service or any account, a setup assistant installs everything with one click and walks through adding the first account ("Show Setup Assistant…" reopens it). The app posts a macOS notification when the CLI account switches, when an account crosses the warning level, and when a sign-in has three days or less left; turn them off in Settings › General.
+
 **Settings.** "Settings…" in the menu bar opens a System Settings style window: launch at login, auto-switch on or off with adjustable switch and warning levels (`cs config threshold 90` does the same), how often usage is checked, every CLI account and Desktop profile with its own page (usage, sign-in expiry, rename, sign in again, move a session), and Claude Desktop update status.
 
-To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAPSHOT=/tmp/panel.png "dist/Claude Accounts.app/Contents/MacOS/ClaudeAccounts"` (add `CLAUDE_ACCOUNTS_SNAPSHOT_DARK=1` for dark mode).
+To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAPSHOT=/tmp/panel.png "dist/Claude Accounts.app/Contents/MacOS/ClaudeAccounts"` (add `CLAUDE_ACCOUNTS_SNAPSHOT_DARK=1` for dark mode). `CLAUDE_ACCOUNTS_OPEN_SETTINGS=1` and `CLAUDE_ACCOUNTS_OPEN_ONBOARDING=1` open those windows at launch.
 
 **From an agent.** The MCP server gives Claude three tools:
 
