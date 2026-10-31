@@ -7,10 +7,8 @@ import Observation
 final class Store {
     var overview: Overview?
     var sessions: [SessionRow] = []
-    var error: String?
-    var notice: String?
+    var loadError: String?
     var busy = false
-    var lastUpdated: Date?
 
     @ObservationIgnored private var timer: Timer?
 
@@ -26,61 +24,74 @@ final class Store {
         do {
             overview = try await CS.decode(Overview.self, ["status", "--json"])
             sessions = try await CS.decode([SessionRow].self, ["sessions", "--limit", "8", "--json"])
-            error = nil
-            lastUpdated = Date()
+            loadError = nil
         } catch {
-            self.error = error.localizedDescription
+            loadError = error.localizedDescription
         }
     }
 
     func refreshLive() async {
-        await perform(["poll"], announce: false)
+        await perform(["poll"])
     }
 
     func open(_ profile: ProfileRow) async {
-        await perform(["open", profile.name], announce: false)
+        await perform(["open", profile.name])
     }
 
     func move(_ session: SessionRow, to profile: ProfileRow) async {
         var arguments = ["handoff", session.id, "--to", profile.name]
         if profile.running {
-            NSApp.activate(ignoringOtherApps: true)
-            let alert = NSAlert()
-            alert.messageText = "Buka ulang jendela \(profile.label)?"
-            alert.informativeText = "Jendela yang sedang terbuka baru menampilkan sesi pindahan setelah dibuka ulang. Pekerjaan yang sedang berjalan di jendela itu akan terhenti."
-            alert.addButton(withTitle: "Buka ulang")
-            alert.addButton(withTitle: "Nanti saja")
-            if alert.runModal() == .alertFirstButtonReturn { arguments.append("--restart") }
+            let restart = Dialog.confirm(
+                title: "Buka ulang jendela \(profile.label)?",
+                message: "Jendela yang sedang terbuka baru menampilkan sesi pindahan setelah dibuka ulang. Pekerjaan yang sedang berjalan di jendela itu akan terhenti.",
+                confirm: "Buka Ulang",
+                cancel: "Nanti Saja"
+            )
+            if restart { arguments.append("--restart") }
         }
-        await perform(arguments)
+        await perform(arguments, report: "Sesi dipindahkan")
     }
 
     func useForCLI(_ account: AccountRow) async {
         await perform(["switch", account.alias])
     }
 
-    func renameAccount(_ account: AccountRow, to alias: String) async {
+    func rename(_ account: AccountRow) async {
+        guard let value = Dialog.prompt(
+            title: "Ubah nama akun \(account.alias)",
+            message: "Huruf kecil, angka, atau tanda hubung. Dipakai di perintah cs dan di menu ini.",
+            initial: account.alias
+        ) else { return }
+        let alias = value.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: " ", with: "-")
+        guard !alias.isEmpty, alias != account.alias else { return }
         await perform(["rename", account.alias, alias])
     }
 
-    func label(_ profile: ProfileRow, as label: String?) async {
-        if let label, !label.trimmingCharacters(in: .whitespaces).isEmpty {
-            await perform(["label", profile.name, label])
-        } else {
-            await perform(["label", profile.name, "--clear"])
-        }
+    func rename(_ profile: ProfileRow) async {
+        guard let value = Dialog.prompt(
+            title: "Ubah nama profil \(profile.label)",
+            message: "Hanya mengubah nama yang tampil di claude-switch. Folder profil \(profile.name) tidak diubah. Kosongkan untuk memakai nama folder.",
+            initial: profile.label
+        ) else { return }
+        let label = value.trimmingCharacters(in: .whitespaces)
+        guard label != profile.label else { return }
+        await perform(label.isEmpty ? ["label", profile.name, "--clear"] : ["label", profile.name, label])
+    }
+
+    func resetName(_ profile: ProfileRow) async {
+        await perform(["label", profile.name, "--clear"])
     }
 
     func setAutoSwitch(_ on: Bool) async {
-        await perform(["config", "autoSwitch", on ? "true" : "false"], announce: false)
-    }
-
-    func addAccount() {
-        runInTerminal("\"\(CS.binary.path)\" add")
+        await perform(["config", "autoSwitch", on ? "true" : "false"])
     }
 
     func registerCurrent() async {
         await perform(["register"])
+    }
+
+    func addAccount() {
+        runInTerminal("\"\(CS.binary.path)\" add")
     }
 
     func openLog() {
@@ -88,23 +99,21 @@ final class Store {
         NSWorkspace.shared.open(log)
     }
 
-    var headline: (text: String, severity: Severity) {
-        guard let overview else { return ("–", .unknown) }
-        let open = overview.profiles.filter { $0.running && $0.percent != nil }
-        let pool = open.isEmpty ? overview.accounts.filter(\.active).map { ($0.percent, $0.severity) } : open.map { ($0.percent, $0.severity) }
-        guard let worst = pool.compactMap({ p, s in p.map { ($0, s) } }).max(by: { $0.0 < $1.0 }) else { return ("–", .unknown) }
-        return ("\(worst.0)%", worst.1)
+    var headline: String {
+        guard let overview else { return "–" }
+        let open = overview.profiles.filter(\.running).compactMap(\.percent)
+        let pool = open.isEmpty ? overview.accounts.filter(\.active).compactMap(\.percent) : open
+        return pool.max().map { "\($0)%" } ?? "–"
     }
 
-    private func perform(_ arguments: [String], announce: Bool = true) async {
+    private func perform(_ arguments: [String], report title: String? = nil) async {
         busy = true
         defer { busy = false }
         do {
             let output = String(decoding: try await CS.run(arguments), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            if announce { notice = output }
-            error = nil
+            if let title { Dialog.inform(title: title, message: output) }
         } catch {
-            self.error = error.localizedDescription
+            Dialog.warn(title: "Tidak berhasil", message: error.localizedDescription)
         }
         await reload()
     }
@@ -117,7 +126,42 @@ final class Store {
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
             NSWorkspace.shared.open(script)
         } catch {
-            self.error = error.localizedDescription
+            Dialog.warn(title: "Tidak bisa membuka Terminal", message: error.localizedDescription)
         }
+    }
+}
+
+@MainActor
+enum Dialog {
+    static func prompt(title: String, message: String, initial: String) -> String? {
+        let field = NSTextField(string: initial)
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        let alert = make(title: title, message: message, buttons: ["Simpan", "Batal"])
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+
+    static func confirm(title: String, message: String, confirm: String, cancel: String) -> Bool {
+        make(title: title, message: message, buttons: [confirm, cancel]).runModal() == .alertFirstButtonReturn
+    }
+
+    static func inform(title: String, message: String) {
+        make(title: title, message: message, buttons: ["OK"]).runModal()
+    }
+
+    static func warn(title: String, message: String) {
+        let alert = make(title: title, message: message, buttons: ["OK"])
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+
+    private static func make(title: String, message: String, buttons: [String]) -> NSAlert {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        buttons.forEach { alert.addButton(withTitle: $0) }
+        return alert
     }
 }
