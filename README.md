@@ -106,6 +106,7 @@ To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAP
 
 ```
 cs status [--refresh] [--json]        usage for every profile and account
+cs doctor [--json]                  check that the Keychain, Anthropic endpoints, Claude Desktop and the install still match what claude-switch expects
 cs sessions [profile]                 recent Desktop sessions
 cs handoff <id> [--to name] [--restart]  move a Desktop session to another profile
 cs open <profile>                     open or focus a Desktop window
@@ -129,13 +130,14 @@ Claude Desktop installs an update only after every window has quit, and then reo
 - A Claude Desktop window reads its session list only when it starts. A session moved into a window that is already open shows up after you quit (Cmd+Q) and reopen it. `cs handoff --restart` and the menu bar app can do that for you. Automatic moves prefer a profile whose window is closed for this reason.
 - If the source window is still open, the moved session stays in both sidebars. Keep working in one of them only.
 - Connectors you added on claude.ai belong to that account. After a move, the session uses the connectors of the new account. MCP servers added locally (`claude mcp add --scope user`) work the same in every account.
-- Usage numbers come from an endpoint Claude Code uses for `/usage`. It is undocumented and may change.
+- Usage numbers come from an endpoint Claude Code uses for `/usage`. It is undocumented and may change. Run `cs doctor` after a Claude Code or Claude Desktop update. It prints one line per check and exits 1 when something is broken.
 
 ## Development
 
 ```bash
 bun install
 bun run check        # typecheck + tests
+CI_NO_KEYCHAIN=1 bun test   # skip test/keychain-e2e.test.ts, which uses throwaway items in the real macOS Keychain
 bun src/cli.ts status
 ./macos/build-app.sh
 ```

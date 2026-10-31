@@ -5,7 +5,7 @@ import { z } from "zod";
 import { readJson, writeJsonAtomic } from "../infra/files.ts";
 import type { DesktopProfile, SessionRoot } from "./profiles.ts";
 
-const SessionCard = z.looseObject({
+export const SessionCard = z.looseObject({
   sessionId: z.string(),
   cliSessionId: z.string(),
   cwd: z.string().nullish(),
@@ -13,7 +13,7 @@ const SessionCard = z.looseObject({
   lastActivityAt: z.number().nullish(),
   isArchived: z.boolean().nullish(),
 });
-type SessionCard = z.infer<typeof SessionCard>;
+export type SessionCard = z.infer<typeof SessionCard>;
 
 export interface DesktopSession {
   profile: DesktopProfile;
