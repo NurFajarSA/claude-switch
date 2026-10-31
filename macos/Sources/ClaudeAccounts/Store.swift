@@ -12,6 +12,7 @@ final class Store {
     var loadError: String?
     var busy = false
     var connectors: ConnectorReport?
+    var unusedServers: [UnusedServer] = []
     var connectorsChecking = false
     var signingIn: Set<String> = []
     var listHeight: CGFloat?
@@ -21,6 +22,7 @@ final class Store {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var reloadTicket = 0
     @ObservationIgnored private var userSwitching = false
+    @ObservationIgnored private var fetchingEvents = false
 
     private static let onboardingCompletedKey = "onboardingCompleted"
     private static let daemonPlist = FileManager.default.homeDirectoryForCurrentUser
@@ -46,6 +48,8 @@ final class Store {
 
     func start() async {
         guard timer == nil else { return }
+        Notifier.shared.store = self
+        Notifier.shared.attach()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.reload() }
         }
@@ -70,6 +74,51 @@ final class Store {
         }
         refreshSetup()
         if overview != nil, !setupIncomplete { finishOnboarding() }
+        await deliverEvents()
+    }
+
+    private static let eventsSinceKey = "eventsSeenUntil"
+
+    private static func parseTimestamp(_ value: String) -> Date? {
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return withFraction.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    private func deliverEvents() async {
+        guard overview != nil, !fetchingEvents else { return }
+        let defaults = UserDefaults.standard
+        guard let since = defaults.string(forKey: Self.eventsSinceKey) else {
+            defaults.set(Date().formatted(.iso8601), forKey: Self.eventsSinceKey)
+            return
+        }
+        fetchingEvents = true
+        defer { fetchingEvents = false }
+        guard let events = try? await CS.decode([EventRow].self, ["events", "--since", since, "--json"]) else { return }
+        let sinceDate = Self.parseTimestamp(since)
+        let fresh = events.filter { event in
+            guard let sinceDate, let date = Self.parseTimestamp(event.ts) else { return true }
+            return date > sinceDate
+        }
+        guard let newest = fresh.last else { return }
+        defaults.set(newest.ts, forKey: Self.eventsSinceKey)
+        let alerts = fresh.compactMap { event -> UsageAlert? in
+            var alert = UsageAlert(id: "event:\(event.kind):\(event.ts)", title: event.title, body: event.body)
+            switch event.kind {
+            case "profile_closed":
+                guard let profile = event.data?.profile else { return nil }
+                alert.category = event.kind
+                alert.userInfo = ["profile": profile]
+            case "mcp_unused":
+                guard let servers = event.data?.servers, !servers.isEmpty else { return nil }
+                alert.category = event.kind
+                alert.userInfo = ["servers": servers]
+            default:
+                break
+            }
+            return alert
+        }
+        await Notifier.shared.post(alerts)
     }
 
     private static let expiryNotifiedKey = "expiryNotifiedOn"
@@ -97,6 +146,10 @@ final class Store {
 
     func open(_ profile: ProfileRow) async {
         await perform(["open", profile.name])
+    }
+
+    func open(profileNamed name: String) async {
+        await perform(["open", name])
     }
 
     func move(_ session: SessionRow, to profile: ProfileRow) async {
@@ -280,6 +333,37 @@ final class Store {
             connectors = try await CS.decode(ConnectorReport.self, ["connectors", "list", "--json"] + (check ? ["--check"] : []))
         } catch {
             Dialog.warn(title: "Couldn’t read MCP servers", message: error.localizedDescription)
+        }
+        unusedServers = (try? await CS.decode([UnusedServer].self, ["connectors", "unused", "--json"])) ?? []
+    }
+
+    var unusedLocalNames: [String] {
+        let local = Set(connectors?.servers.filter { $0.origin == "local" && $0.removable }.map(\.name) ?? [])
+        return unusedServers.map(\.name).filter { local.contains($0) }
+    }
+
+    func removeUnusedServers() async {
+        let names = unusedLocalNames
+        guard !names.isEmpty else { return }
+        guard Dialog.confirm(
+            title: "Remove \(names.count) unused \(names.count == 1 ? "server" : "servers")?",
+            message: "No session has used these in 30 days: \(names.joined(separator: ", ")). Every account on this Mac stops using them. You can add them again later.",
+            confirm: "Remove",
+            cancel: "Cancel"
+        ) else { return }
+        await removeServers(names)
+    }
+
+    func removeServers(_ names: [String]) async {
+        busy = true
+        var failed: [String] = []
+        for name in names {
+            do { _ = try await CS.run(["connectors", "remove", name]) } catch { failed.append(name) }
+        }
+        busy = false
+        await loadConnectors(check: false)
+        if !failed.isEmpty {
+            Dialog.warn(title: "Couldn’t remove every server", message: "Still there: \(failed.joined(separator: ", ")).")
         }
     }
 

@@ -5,6 +5,14 @@ struct UsageAlert {
     let id: String
     let title: String
     let body: String
+    var category: String? = nil
+    var userInfo: [String: Any] = [:]
+}
+
+enum EventAction {
+    static let openAgain = "openAgain"
+    static let removeThem = "removeThem"
+    static let keep = "keep"
 }
 
 struct Tracked {
@@ -70,15 +78,37 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
     }
 
+    weak var store: Store?
     private var attached = false
 
+    private var center: UNUserNotificationCenter? {
+        Bundle.main.bundleURL.pathExtension == "app" ? UNUserNotificationCenter.current() : nil
+    }
+
+    func attach() {
+        guard !attached, let center else { return }
+        attached = true
+        center.delegate = self
+        center.setNotificationCategories([
+            UNNotificationCategory(
+                identifier: "profile_closed",
+                actions: [UNNotificationAction(identifier: EventAction.openAgain, title: "Open Again")],
+                intentIdentifiers: []
+            ),
+            UNNotificationCategory(
+                identifier: "mcp_unused",
+                actions: [
+                    UNNotificationAction(identifier: EventAction.removeThem, title: "Remove Them", options: [.destructive]),
+                    UNNotificationAction(identifier: EventAction.keep, title: "Keep")
+                ],
+                intentIdentifiers: []
+            )
+        ])
+    }
+
     func post(_ alerts: [UsageAlert]) async {
-        guard Self.enabled, !alerts.isEmpty, Bundle.main.bundleURL.pathExtension == "app" else { return }
-        let center = UNUserNotificationCenter.current()
-        if !attached {
-            center.delegate = self
-            attached = true
-        }
+        guard Self.enabled, !alerts.isEmpty, let center else { return }
+        attach()
         var status = await center.notificationSettings().authorizationStatus
         if status == .notDetermined {
             _ = try? await center.requestAuthorization(options: [.alert, .sound])
@@ -90,7 +120,31 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             content.title = alert.title
             content.body = alert.body
             content.sound = .default
+            if let category = alert.category { content.categoryIdentifier = category }
+            content.userInfo = alert.userInfo
             try? await center.add(UNNotificationRequest(identifier: alert.id, content: content, trigger: nil))
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let action = response.actionIdentifier
+        let info = response.notification.request.content.userInfo
+        let profile = info["profile"] as? String
+        let servers = info["servers"] as? [String] ?? []
+        Task { @MainActor in
+            switch action {
+            case EventAction.openAgain:
+                if let profile { await Notifier.shared.store?.open(profileNamed: profile) }
+            case EventAction.removeThem:
+                await Notifier.shared.store?.removeServers(servers)
+            default:
+                break
+            }
+            completionHandler()
         }
     }
 

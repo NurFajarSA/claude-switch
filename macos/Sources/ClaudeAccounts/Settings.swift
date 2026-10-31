@@ -696,6 +696,16 @@ struct ConnectorsPane: View {
         if let report = store.connectors {
             Section {
                 let waiting = report.servers.filter { $0.origin == "local" && $0.health == "needs_auth" }
+                let unused = store.unusedLocalNames
+                if !unused.isEmpty {
+                    LabeledContent {
+                        Button("Remove Unused…") { Task { await store.removeUnusedServers() } }
+                            .disabled(store.busy)
+                    } label: {
+                        Text("\(unused.count) \(unused.count == 1 ? "server" : "servers") unused for 30 days")
+                        Text(unused.joined(separator: ", "))
+                    }
+                }
                 HStack {
                     Button("Add Server…") { Task { await store.addServer() } }
                     if !waiting.isEmpty {
@@ -710,6 +720,9 @@ struct ConnectorsPane: View {
                 ForEach(report.servers.filter { $0.origin != "account" }) { server in
                     LabeledContent {
                         HStack(spacing: 8) {
+                            if store.unusedLocalNames.contains(server.name) {
+                                StatusBadge(text: "Unused 30 Days", color: .orange)
+                            }
                             if store.signingIn.contains(server.name) {
                                 ProgressView().controlSize(.small)
                                 Text("Finish in Terminal").font(.caption).foregroundStyle(.secondary)
