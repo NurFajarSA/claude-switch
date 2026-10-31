@@ -652,6 +652,18 @@ struct ConnectorsPane: View {
     var body: some View {
         if let report = store.connectors {
             Section {
+                let waiting = report.servers.filter { $0.origin == "local" && $0.health == "needs_auth" }
+                HStack {
+                    Button("Add Server…") { Task { await store.addServer() } }
+                    if !waiting.isEmpty {
+                        Button("Sign In to All (\(waiting.count))") { Task { await store.signInToAll(waiting) } }
+                            .disabled(!store.signingIn.isEmpty)
+                    }
+                    Spacer()
+                    if store.connectorsChecking { ProgressView().controlSize(.small) }
+                    Button(report.checked ? "Check Again" : "Check Status") { Task { await store.loadConnectors(check: true) } }
+                        .disabled(store.connectorsChecking)
+                }
                 ForEach(report.servers.filter { $0.origin != "account" }) { server in
                     LabeledContent {
                         HStack(spacing: 8) {
@@ -683,18 +695,6 @@ struct ConnectorsPane: View {
                         Text(server.origin == "plugin" ? server.name.replacingOccurrences(of: "plugin:", with: "") : server.name)
                         Text(server.origin == "plugin" ? "From a plugin · \(host(server.target))" : host(server.target))
                     }
-                }
-                let waiting = report.servers.filter { $0.origin == "local" && $0.health == "needs_auth" }
-                HStack {
-                    Button("Add Server…") { Task { await store.addServer() } }
-                    if !waiting.isEmpty {
-                        Button("Sign In to All (\(waiting.count))") { Task { await store.signInToAll(waiting) } }
-                            .disabled(!store.signingIn.isEmpty)
-                    }
-                    Spacer()
-                    if store.connectorsChecking { ProgressView().controlSize(.small) }
-                    Button(report.checked ? "Check Again" : "Check Status") { Task { await store.loadConnectors(check: true) } }
-                        .disabled(store.connectorsChecking)
                 }
             } header: {
                 Text("On this Mac")
