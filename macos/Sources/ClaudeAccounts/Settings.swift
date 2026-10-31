@@ -118,11 +118,7 @@ struct SettingsView: View {
         }
         .frame(minWidth: 780, minHeight: 540)
         .task { await store.reload() }
-        .onAppear {
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-        }
-        .onDisappear { NSApp.setActivationPolicy(.accessory) }
+        .appWindowPresence()
     }
 
     @ToolbarContentBuilder
@@ -246,6 +242,7 @@ struct PaneContent: View {
 
 struct GeneralPane: View {
     let store: Store
+    @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = LoginItem.isEnabled
 
     var body: some View {
@@ -259,6 +256,14 @@ struct GeneralPane: View {
             })) {
                 Text("Launch at Login")
                 Text("Show Claude Accounts in the menu bar when you log in.")
+            }
+        }
+        Section("Setup") {
+            LabeledContent("Setup assistant") {
+                Button("Show Setup Assistant…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "onboarding")
+                }
             }
         }
         Section("Files") {

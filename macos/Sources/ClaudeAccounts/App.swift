@@ -18,8 +18,10 @@ struct ClaudeAccountsApp: App {
             }
             .task {
                 await Snapshot.runIfRequested(store: store)
-                store.start()
-                if ProcessInfo.processInfo.environment["CLAUDE_ACCOUNTS_OPEN_SETTINGS"] == "1" { openWindow(id: "settings") }
+                await store.start()
+                let environment = ProcessInfo.processInfo.environment
+                if environment["CLAUDE_ACCOUNTS_OPEN_SETTINGS"] == "1" { openWindow(id: "settings") }
+                if environment["CLAUDE_ACCOUNTS_OPEN_ONBOARDING"] == "1" || store.shouldAutoShowOnboarding { openWindow(id: "onboarding") }
             }
         }
         .menuBarExtraStyle(.window)
@@ -28,6 +30,12 @@ struct ClaudeAccountsApp: App {
             SettingsView(store: store)
         }
         .defaultSize(width: 760, height: 540)
+        .defaultPosition(.center)
+
+        Window("Welcome to Claude Accounts", id: "onboarding") {
+            OnboardingView(store: store)
+        }
+        .windowResizability(.contentSize)
         .defaultPosition(.center)
     }
 }
@@ -80,6 +88,10 @@ struct Panel: View {
                 ActionRow(title: "Settings…") {
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "settings")
+                }
+                ActionRow(title: "Show Setup Assistant…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "onboarding")
                 }
                 ActionRow(title: "Quit Claude Accounts") { NSApplication.shared.terminate(nil) }
             }
