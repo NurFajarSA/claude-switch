@@ -148,8 +148,8 @@ export class Engine {
     }
   }
 
-  async autoSwitch({ force }: { force: boolean }): Promise<AutoSwitchResult> {
-    await this.pollAll();
+  async autoSwitch({ force, poll = true }: { force: boolean; poll?: boolean }): Promise<AutoSwitchResult> {
+    if (poll) await this.pollAll();
     const status = await this.status();
     const decision = decideSwitch({
       live: status.live?.id ?? null,
