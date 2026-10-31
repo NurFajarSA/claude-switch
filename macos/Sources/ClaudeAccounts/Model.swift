@@ -150,3 +150,37 @@ struct ConnectorReport: Decodable {
     let connectors: [AccountConnectorRow]
     let checked: Bool
 }
+
+struct RuleAccount: Decodable, Hashable {
+    let id: String
+    let names: [String]
+}
+
+struct ProjectRuleRow: Decodable, Identifiable, Hashable {
+    var id: String { path }
+    let path: String
+    let accounts: [RuleAccount]
+}
+
+struct AccountChoice: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let email: String?
+
+    static func all(in overview: Overview) -> [AccountChoice] {
+        var order: [String] = []
+        for account in overview.accounts where !order.contains(account.id) { order.append(account.id) }
+        for profile in overview.profiles {
+            if let id = profile.accountId, !order.contains(id) { order.append(id) }
+        }
+        return order.map { id in
+            let account = overview.accounts.first { $0.id == id }
+            let profiles = overview.profiles.filter { $0.accountId == id }
+            let alias = account?.alias ?? profiles.compactMap(\.alias).first
+            let labels = profiles.map(\.label)
+            let name = alias.flatMap { $0.isEmpty ? nil : $0 } ?? (labels.isEmpty ? "Account \(id.prefix(8))" : labels.joined(separator: ", "))
+            let email = account?.email ?? profiles.compactMap(\.email).first
+            return AccountChoice(id: id, name: name, email: email)
+        }
+    }
+}

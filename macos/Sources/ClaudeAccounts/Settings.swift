@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
-    case general, autoSwitch, accounts, profiles, connectors, usage, updates, about
+    case general, autoSwitch, rules, accounts, profiles, connectors, usage, updates, about
 
     var id: String { rawValue }
 
@@ -10,6 +10,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general: "General"
         case .autoSwitch: "Auto-switch"
+        case .rules: "Project Rules"
         case .accounts: "CLI Accounts"
         case .profiles: "Desktop Profiles"
         case .connectors: "Connectors"
@@ -22,6 +23,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
     var summary: String {
         switch self {
         case .general: "Start at login, and find the files Claude Accounts keeps on this Mac."
+        case .rules: "Choose which accounts each project folder may use. Auto-switch and session moves stay inside these accounts."
         case .autoSwitch: "Move to another account before the one in use hits its limit."
         case .accounts: "Accounts the Claude Code CLI and VS Code can sign in with. One is in use at a time."
         case .profiles: "Each Claude Desktop profile is its own window, signed in to one account."
@@ -36,6 +38,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general: "gearshape.fill"
         case .autoSwitch: "arrow.triangle.2.circlepath"
+        case .rules: "folder.badge.gearshape"
         case .accounts: "terminal.fill"
         case .profiles: "macwindow"
         case .connectors: "puzzlepiece.extension.fill"
@@ -49,6 +52,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general: .gray
         case .autoSwitch: .green
+        case .rules: .mint
         case .accounts: .indigo
         case .profiles: .blue
         case .connectors: .purple
@@ -61,6 +65,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
     var keywords: [String] {
         switch self {
         case .general: ["login", "startup", "log", "files", "folder"]
+        case .rules: ["rules", "project", "folder", "allowed"]
         case .autoSwitch: ["threshold", "switch", "limit", "warning", "percent"]
         case .accounts: ["cli", "vs code", "sign in", "rename", "remove", "account"]
         case .profiles: ["desktop", "window", "profile", "session", "move"]
@@ -71,7 +76,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    static let main: [SettingsPane] = [.general, .autoSwitch, .accounts, .profiles, .connectors, .usage, .updates]
+    static let main: [SettingsPane] = [.general, .autoSwitch, .rules, .accounts, .profiles, .connectors, .usage, .updates]
 }
 
 enum SettingsRoute: Hashable {
@@ -230,6 +235,7 @@ struct PaneContent: View {
                 switch pane {
                 case .general: GeneralPane(store: store)
                 case .autoSwitch: AutoSwitchPane(store: store, overview: overview)
+                case .rules: RulesPane(store: store, overview: overview)
                 case .accounts: AccountsPane(store: store, overview: overview)
                 case .profiles: ProfilesPane(store: store, overview: overview)
                 case .usage: UsagePane(store: store, overview: overview)

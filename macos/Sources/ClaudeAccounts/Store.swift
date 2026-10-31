@@ -7,6 +7,8 @@ import Observation
 final class Store {
     var overview: Overview?
     var sessions: [SessionRow] = []
+    var rules: [ProjectRuleRow] = []
+    var rulesError: String?
     var loadError: String?
     var busy = false
     var connectors: ConnectorReport?
@@ -230,6 +232,47 @@ final class Store {
         await reload()
     }
 
+    func loadRules() async {
+        do {
+            rules = try await CS.decode([ProjectRuleRow].self, ["rules", "--json"])
+            rulesError = nil
+        } catch {
+            rulesError = error.localizedDescription
+        }
+    }
+
+    func setRule(_ path: String, accounts ids: [String]) async {
+        await perform(["rules", "set", path] + ids)
+        await loadRules()
+    }
+
+    func removeRule(_ rule: ProjectRuleRow) async {
+        guard Dialog.confirm(
+            title: "Remove the rule for \(URL(fileURLWithPath: rule.path).lastPathComponent)?",
+            message: "Sessions in this folder can use every account again.",
+            confirm: "Remove",
+            cancel: "Cancel"
+        ) else { return }
+        await perform(["rules", "remove", rule.path])
+        await loadRules()
+    }
+
+    func addRule(choices: [AccountChoice]) async {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Project Folder"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        guard let ids = Dialog.pickAccounts(
+            title: "Accounts for \(folder.lastPathComponent)",
+            message: "Sessions in this folder only switch or move between the accounts you check.",
+            choices: choices
+        ) else { return }
+        await setRule(folder.path, accounts: ids)
+    }
+
     func loadConnectors(check: Bool) async {
         connectorsChecking = check
         defer { connectorsChecking = false }
@@ -332,6 +375,26 @@ enum Dialog {
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         let pair = (name.stringValue.trimmingCharacters(in: .whitespaces), url.stringValue.trimmingCharacters(in: .whitespaces))
         return pair.0.isEmpty || pair.1.isEmpty ? nil : pair
+    }
+
+    static func pickAccounts(title: String, message: String, choices: [AccountChoice]) -> [String]? {
+        while true {
+            let boxes = choices.map { choice -> NSButton in
+                let label = choice.email.map { "\(choice.name) (\($0))" } ?? choice.name
+                return NSButton(checkboxWithTitle: label, target: nil, action: nil)
+            }
+            let stack = NSStackView(views: boxes)
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 8
+            stack.frame = NSRect(x: 0, y: 0, width: 320, height: max(24, 24 * CGFloat(boxes.count)))
+            let alert = make(title: title, message: message, buttons: ["Add Rule", "Cancel"])
+            alert.accessoryView = stack
+            guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+            let ids = zip(choices, boxes).filter { $0.1.state == .on }.map(\.0.id)
+            if !ids.isEmpty { return ids }
+            warn(title: "Choose at least one account", message: "A rule needs an account to allow. To use every account, don’t add a rule.")
+        }
     }
 
     static func confirm(title: String, message: String, confirm: String, cancel: String) -> Bool {
