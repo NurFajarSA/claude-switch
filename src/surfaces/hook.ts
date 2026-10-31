@@ -78,8 +78,9 @@ function desktopMessage(event: string, outcome: HandoffOutcome): HookOutput | nu
   switch (outcome.kind) {
     case "moved": {
       const target = outcome.to.profile.name;
-      const user = `claude-switch: this account is near its limit. The session was copied to the "${target}" Desktop window; continue there.`;
-      const agent = `The user's Claude account for this window is near its usage limit. claude-switch copied this session to the "${target}" Claude Desktop profile and ${outcome.opened === "skipped" ? "left it closed" : "brought that window to the front"}. Answer the current message briefly, then tell the user to continue in the "${target}" window.`;
+      const user = `claude-switch: this account is near its limit. The session was copied to the "${target}" Desktop profile; continue there.${outcome.window === "needs_reopen" ? " Reopen that window first (Cmd+Q, then open it)." : ""}`;
+      const reopen = outcome.window === "needs_reopen" ? ` That window was already open, so the user must quit it (Cmd+Q) and open it again before the session shows up.` : "";
+      const agent = `The user's Claude account for this window is near its usage limit. claude-switch copied this session to the "${target}" Claude Desktop profile.${reopen} Answer the current message briefly, then tell the user to continue in the "${target}" window.`;
       return event === "StopFailure" ? { systemMessage: user } : withContext(event, user, agent);
     }
     case "exhausted":

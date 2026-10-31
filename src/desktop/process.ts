@@ -1,6 +1,56 @@
 import type { DesktopProfile } from "./profiles.ts";
 
 const MAIN_BINARY = "/Applications/Claude.app/Contents/MacOS/Claude";
+const QUIT_TIMEOUT_MS = 20_000;
+
+export type WindowAction = "focused" | "launched" | "restarted";
+
+export interface DesktopWindows {
+  isRunning(profile: DesktopProfile): Promise<boolean>;
+  open(profile: DesktopProfile): Promise<WindowAction>;
+  restart(profile: DesktopProfile): Promise<WindowAction>;
+}
+
+export class MacDesktopWindows implements DesktopWindows {
+  async isRunning(profile: DesktopProfile): Promise<boolean> {
+    return (await this.pid(profile)) !== undefined;
+  }
+
+  async open(profile: DesktopProfile): Promise<WindowAction> {
+    const pid = await this.pid(profile);
+    if (pid !== undefined) {
+      await exec(["/usr/bin/osascript", "-e", `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`]);
+      return "focused";
+    }
+    await this.launch(profile);
+    return "launched";
+  }
+
+  async restart(profile: DesktopProfile): Promise<WindowAction> {
+    const pid = await this.pid(profile);
+    if (pid === undefined) {
+      await this.launch(profile);
+      return "launched";
+    }
+    process.kill(pid, "SIGTERM");
+    const deadline = Date.now() + QUIT_TIMEOUT_MS;
+    while ((await this.pid(profile)) !== undefined) {
+      if (Date.now() > deadline) throw new Error(`Claude (${profile.name}) did not quit within ${QUIT_TIMEOUT_MS / 1000}s`);
+      await Bun.sleep(250);
+    }
+    await this.launch(profile);
+    return "restarted";
+  }
+
+  private async pid(profile: DesktopProfile): Promise<number | undefined> {
+    return profilePid(await runningProfiles(), profile);
+  }
+
+  private async launch(profile: DesktopProfile): Promise<void> {
+    const args = profile.isDefault ? ["-n", "-a", "Claude"] : ["-n", "-a", "Claude", "--args", `--user-data-dir=${profile.dir}`];
+    await exec(["/usr/bin/open", ...args]);
+  }
+}
 
 export async function runningProfiles(): Promise<Map<string, number>> {
   const proc = Bun.spawn(["/bin/ps", "-axo", "pid=,command="], { stdout: "pipe", stderr: "ignore" });
@@ -17,19 +67,8 @@ export async function runningProfiles(): Promise<Map<string, number>> {
   return running;
 }
 
-export function profilePid(running: Map<string, number>, profile: DesktopProfile): number | undefined {
+function profilePid(running: Map<string, number>, profile: DesktopProfile): number | undefined {
   return running.get(profile.isDefault ? "default" : profile.dir) ?? (profile.isDefault ? running.get(profile.dir) : undefined);
-}
-
-export async function openProfile(profile: DesktopProfile): Promise<"focused" | "launched"> {
-  const pid = profilePid(await runningProfiles(), profile);
-  if (pid !== undefined) {
-    await exec(["/usr/bin/osascript", "-e", `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`]);
-    return "focused";
-  }
-  const args = profile.isDefault ? ["-n", "-a", "Claude"] : ["-n", "-a", "Claude", "--args", `--user-data-dir=${profile.dir}`];
-  await exec(["/usr/bin/open", ...args]);
-  return "launched";
 }
 
 async function exec(cmd: string[]): Promise<void> {

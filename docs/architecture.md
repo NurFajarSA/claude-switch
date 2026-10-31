@@ -62,4 +62,6 @@ A Code session is a card at `claude-code-sessions/<accountUuid>/<orgUuid>/local_
 
 `handoffSession` copies a fixed list of fields (`CARRIED_FIELDS`) into a new card in the target profile and clears `enabledMcpTools` and `remoteMcpServersConfig`, which describe the source account's claude.ai connectors. Moving a session back to a profile that already has a card for the same transcript reuses that card. The source card is archived only when its window is closed, because a running Desktop may rewrite cards from memory.
 
+A running Desktop window does not rescan `claude-code-sessions/`; a card written while it runs appears after the window restarts (observed on Claude Desktop with Claude Code 2.1.309). `DesktopHub.decide` therefore tries closed profiles first and falls back to open ones only when every closed profile is at its limit. For an open target, `handoff` reports `needs_reopen` unless the caller passes `restart`, which sends SIGTERM to that profile's main process, waits for it to exit and launches it again.
+
 The hook and the MCP server know which Desktop session they run in from `CLAUDE_CODE_HOST_SESSION_ID` and `CLAUDE_CODE_ACCOUNT_UUID`, which Desktop sets for its Claude Code processes.

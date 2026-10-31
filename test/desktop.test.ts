@@ -3,11 +3,29 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DesktopHub } from "../src/desktop/hub.ts";
+import type { DesktopWindows, WindowAction } from "../src/desktop/process.ts";
+import type { DesktopProfile } from "../src/desktop/profiles.ts";
 import { discoverProfiles } from "../src/desktop/profiles.ts";
 import { findSession, handoffSession } from "../src/desktop/sessions.ts";
 import { setup } from "./support.ts";
 
 const NOW = Date.parse("2026-10-31T10:00:00Z");
+
+class FakeWindows implements DesktopWindows {
+  readonly actions: string[] = [];
+  constructor(private readonly running = new Set<string>()) {}
+  async isRunning(profile: DesktopProfile) {
+    return this.running.has(profile.name);
+  }
+  async open(profile: DesktopProfile): Promise<WindowAction> {
+    this.actions.push(`open ${profile.name}`);
+    return this.running.has(profile.name) ? "focused" : "launched";
+  }
+  async restart(profile: DesktopProfile): Promise<WindowAction> {
+    this.actions.push(`restart ${profile.name}`);
+    return "restarted";
+  }
+}
 
 interface FixtureProfile {
   folder: string;
@@ -164,7 +182,7 @@ describe("DesktopHub.handoff", () => {
       { folder: "Claude-lama", account: "acct-lama", usage: { fh: 0, minutesAgo: 600 }, sessions: [card("local_l", { cliSessionId: "l" })] },
       { folder: "Claude-penuh", account: "acct-penuh", usage: { fh: 99, minutesAgo: 1 }, sessions: [card("local_x", { cliSessionId: "x" })] },
     ]);
-    const hub = new DesktopHub(t.engine, root, () => NOW);
+    const hub = new DesktopHub(t.engine, { appSupportDir: root, windows: new FakeWindows(), now: () => NOW });
 
     const outcome = await hub.handoff({ sessionId: "local_src", force: false, open: false });
 
@@ -179,8 +197,45 @@ describe("DesktopHub.handoff", () => {
       { folder: "Claude-klien", account: "acct-klien", usage: { fh: 5, minutesAgo: 3 }, sessions: [card("local_k", { cliSessionId: "k" })] },
     ]);
 
-    const outcome = await new DesktopHub(t.engine, root, () => NOW).handoff({ sessionId: "local_src", force: false, open: false });
+    const hub = new DesktopHub(t.engine, { appSupportDir: root, windows: new FakeWindows(), now: () => NOW });
+    const outcome = await hub.handoff({ sessionId: "local_src", force: false, open: false });
 
     expect(outcome).toEqual({ kind: "stay", reason: "active account at 50%" });
+  });
+
+  test("prefers a closed window over an open one with more headroom, because open windows only load sessions at startup", async () => {
+    const t = await setup();
+    const root = await fixture([
+      { folder: "Claude-kantor", account: "acct-kantor", usage: { fh: 97, minutesAgo: 2 }, sessions: [card("local_src")] },
+      { folder: "Claude-terbuka", account: "acct-terbuka", usage: { fh: 2, minutesAgo: 2 }, sessions: [card("local_o", { cliSessionId: "o" })] },
+      { folder: "Claude-tertutup", account: "acct-tertutup", usage: { fh: 60, minutesAgo: 2 }, sessions: [card("local_c", { cliSessionId: "c" })] },
+    ]);
+    const windows = new FakeWindows(new Set(["kantor", "terbuka"]));
+    const hub = new DesktopHub(t.engine, { appSupportDir: root, windows, now: () => NOW });
+
+    const outcome = await hub.handoff({ sessionId: "local_src", force: false });
+
+    expect(outcome.kind === "moved" ? [String(outcome.to.profile.name), outcome.window] : null).toEqual(["tertutup", "launched"]);
+    expect(windows.actions).toEqual(["open tertutup"]);
+  });
+
+  test("an open target is left alone and reported as needing a reopen unless restart is requested", async () => {
+    const t = await setup();
+    const fixtureProfiles: FixtureProfile[] = [
+      { folder: "Claude-kantor", account: "acct-kantor", sessions: [card("local_src")] },
+      { folder: "Claude-terbuka", account: "acct-terbuka", sessions: [card("local_o", { cliSessionId: "o" })] },
+    ];
+    const plainWindows = new FakeWindows(new Set(["terbuka"]));
+    const plain = new DesktopHub(t.engine, { appSupportDir: await fixture(fixtureProfiles), windows: plainWindows, now: () => NOW });
+    const restartWindows = new FakeWindows(new Set(["terbuka"]));
+    const restarting = new DesktopHub(t.engine, { appSupportDir: await fixture(fixtureProfiles), windows: restartWindows, now: () => NOW });
+
+    const left = await plain.handoff({ sessionId: "local_src", to: "terbuka", force: true });
+    const restarted = await restarting.handoff({ sessionId: "local_src", to: "terbuka", force: true, restart: true });
+
+    expect(left.kind === "moved" && left.window).toBe("needs_reopen");
+    expect(plainWindows.actions).toEqual([]);
+    expect(restarted.kind === "moved" && restarted.window).toBe("restarted");
+    expect(restartWindows.actions).toEqual(["restart terbuka"]);
   });
 });

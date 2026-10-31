@@ -42,17 +42,21 @@ export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: Desk
     {
       title: "Move this conversation to another Claude account",
       description:
-        "Continue the current Claude Desktop conversation under another account. Copies this session into the target account's Desktop profile, with the full transcript, and brings that window to the front. Omit `to` to pick the account with the most remaining usage. After it succeeds, finish your reply and tell the user to continue in the named window; do not keep working in this one.",
+        "Continue the current Claude Desktop conversation under another account. Copies this session into the target account's Desktop profile, with the full transcript, and opens that window. Omit `to` to pick the account with the most remaining usage; closed windows are preferred because an open window only loads new sessions when it restarts. After it succeeds, finish your reply and tell the user to continue in the named window; do not keep working in this one.",
       inputSchema: {
         to: z.string().optional().describe("Desktop profile name, e.g. fajar-x-2; omit to choose automatically"),
         session: z.string().optional().describe("Desktop session id (local_…); defaults to the current conversation"),
+        restart: z
+          .boolean()
+          .optional()
+          .describe("If the target window is already open, quit and reopen it so it shows the session. Only pass true after the user agreed, since it interrupts work in that window."),
       },
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    async ({ to, session }) => {
+    async ({ to, session, restart }) => {
       const sessionId = session ?? currentSession;
       if (!sessionId) return failure("This conversation is not a Claude Desktop session. Pass `session` explicitly.");
-      return guarded(async () => describeHandoff(await hub.handoff({ sessionId, to, force: true })));
+      return guarded(async () => describeHandoff(await hub.handoff({ sessionId, to, force: true, restart: restart ?? false })));
     },
   );
 

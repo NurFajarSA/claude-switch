@@ -73,12 +73,12 @@ Claude Code CLI / VS Code login (● active)
 | Tool | Does |
 | --- | --- |
 | `list_accounts` | Every profile and account with its usage |
-| `handoff_session` | Moves the current Desktop conversation to the account with the most headroom, or to a named profile, and brings that window forward |
+| `handoff_session` | Moves the current Desktop conversation to the account with the most headroom, or to a named profile, and opens that window |
 | `switch_cli_account` | Changes the CLI / VS Code login |
 
 **Automatically.** With `autoSwitch` on (the default), the hook checks usage before each prompt:
 
-- In Claude Desktop, when the window's account is at or above the threshold, the session is copied to the profile with the most headroom and that window comes to the front. The agent answers the current message and tells you to continue there.
+- In Claude Desktop, when the window's account is at or above the threshold, the session is copied to the profile with the most headroom, preferring profiles whose window is closed, and that window opens. The agent answers the current message and tells you to continue there.
 - In the CLI or VS Code, the login is switched. Running sessions pick up the new login within about 30 seconds.
 - When a request fails on a rate limit (`StopFailure`), the same happens immediately.
 
@@ -87,7 +87,7 @@ Claude Code CLI / VS Code login (● active)
 ```
 cs status [--refresh] [--json]        usage for every profile and account
 cs sessions [profile]                 recent Desktop sessions
-cs handoff <session-id> [--to name]   move a Desktop session to another profile
+cs handoff <id> [--to name] [--restart]  move a Desktop session to another profile
 cs open <profile>                     open or focus a Desktop window
 cs switch <alias> | --auto            change the CLI login
 cs add [alias] / cs register [alias]  add accounts
@@ -97,7 +97,7 @@ cs config [key] [value]               threshold (95), warnAt (85), pollSeconds (
 
 ## Limits
 
-- Claude Desktop shows a moved session after the target window loads its session list. If it does not appear, quit and reopen that profile.
+- A Claude Desktop window reads its session list only when it starts. A session moved into a window that is already open shows up after you quit (Cmd+Q) and reopen it. `cs handoff --restart` and the menu bar app can do that for you. Automatic moves prefer a profile whose window is closed for this reason.
 - If the source window is still open, the moved session stays in both sidebars. Keep working in one of them only.
 - Connectors you added on claude.ai belong to that account. After a move, the session uses the connectors of the new account. MCP servers added locally (`claude mcp add --scope user`) work the same in every account.
 - Usage numbers come from an endpoint Claude Code uses for `/usage`. It is undocumented and may change.

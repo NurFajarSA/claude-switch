@@ -108,17 +108,17 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   handoff: {
-    usage: "cs handoff <session-id> [--to profile] [--no-open]",
+    usage: "cs handoff <session-id> [--to profile] [--restart] [--no-open]",
     summary: "Continue a Desktop session under another account's profile",
     run: async (args) => {
       const { values, positionals } = parseArgs({
         args,
         allowPositionals: true,
-        options: { to: { type: "string" }, "no-open": { type: "boolean" } },
+        options: { to: { type: "string" }, restart: { type: "boolean" }, "no-open": { type: "boolean" } },
       });
       const sessionId = positionals[0] ?? process.env.CLAUDE_CODE_HOST_SESSION_ID;
       if (!sessionId) throw new UserError("Pass a session id (see `cs sessions`).");
-      out(describeHandoff(await hub.handoff({ sessionId, to: values.to, force: true, open: !values["no-open"] })));
+      out(describeHandoff(await hub.handoff({ sessionId, to: values.to, force: true, open: !values["no-open"], restart: values.restart ?? false })));
     },
   },
   open: {

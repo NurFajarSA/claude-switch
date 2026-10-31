@@ -1,5 +1,14 @@
 import type { SwitchResult } from "../core/engine.ts";
-import type { HandoffOutcome } from "../desktop/hub.ts";
+import type { HandoffOutcome, TargetWindow } from "../desktop/hub.ts";
+
+const WINDOW_TEXT: Record<TargetWindow, string> = {
+  focused: "Its window is in front; the session is at the top of the Code sidebar.",
+  launched: "Its window is starting; the session is at the top of the Code sidebar.",
+  restarted: "Its window was reopened so it loads the session; the session is at the top of the Code sidebar.",
+  left_closed: "Open that profile to continue; the session is at the top of the Code sidebar.",
+  needs_reopen:
+    "That window was already open and only reads its session list at startup. Quit it (Cmd+Q) and open it again, or rerun with --restart, to see the session.",
+};
 
 export function describeSwitch(result: SwitchResult): string {
   switch (result.kind) {
@@ -18,11 +27,10 @@ export function describeHandoff(outcome: HandoffOutcome): string {
   switch (outcome.kind) {
     case "moved": {
       const title = outcome.session.card.title ?? outcome.session.card.cliSessionId;
-      const window = outcome.opened === "skipped" ? "Open that window" : outcome.opened === "launched" ? "Its window is starting" : "Its window is now in front";
       const source = outcome.result.sourceArchived
         ? "The copy in the old profile was archived."
         : "The old window is still open; stop sending messages there so both windows do not write to the same conversation.";
-      return `Moved "${title}" to profile "${outcome.to.profile.name}". ${window}; the session is at the top of the Code sidebar. ${source}`;
+      return `Moved "${title}" to profile "${outcome.to.profile.name}". ${WINDOW_TEXT[outcome.window]} ${source}`;
     }
     case "stay":
       return `Not moved: ${outcome.reason}.`;

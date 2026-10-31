@@ -42,7 +42,17 @@ final class Store {
     }
 
     func move(_ session: SessionRow, to profile: ProfileRow) async {
-        await perform(["handoff", session.id, "--to", profile.name])
+        var arguments = ["handoff", session.id, "--to", profile.name]
+        if profile.running {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Buka ulang jendela \(profile.name)?"
+            alert.informativeText = "Jendela yang sedang terbuka baru menampilkan sesi pindahan setelah dibuka ulang. Pekerjaan yang sedang berjalan di jendela itu akan terhenti."
+            alert.addButton(withTitle: "Buka ulang")
+            alert.addButton(withTitle: "Nanti saja")
+            if alert.runModal() == .alertFirstButtonReturn { arguments.append("--restart") }
+        }
+        await perform(arguments)
     }
 
     func useForCLI(_ account: AccountRow) async {
