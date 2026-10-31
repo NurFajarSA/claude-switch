@@ -181,7 +181,19 @@ async function writeLaunchAgent(path: string, label: string, args: string[], { k
 async function reloadAgent(plist: string, label: string) {
   const domain = `gui/${process.getuid?.() ?? 501}`;
   await sh(["/bin/launchctl", "bootout", `${domain}/${label}`], { allowFailure: true });
-  await sh(["/bin/launchctl", "bootstrap", domain, plist]);
+  // bootout returns before the old job is gone, and bootstrapping over it fails with error 5.
+  for (let i = 0; i < 50 && (await loaded(domain, label)); i++) await Bun.sleep(100);
+  try {
+    await sh(["/bin/launchctl", "bootstrap", domain, plist]);
+  } catch {
+    await Bun.sleep(1000);
+    await sh(["/bin/launchctl", "bootstrap", domain, plist]);
+  }
+}
+
+async function loaded(domain: string, label: string): Promise<boolean> {
+  const proc = Bun.spawn(["/bin/launchctl", "print", `${domain}/${label}`], { stdout: "ignore", stderr: "ignore" });
+  return (await proc.exited) === 0;
 }
 
 async function exists(path: string): Promise<boolean> {
