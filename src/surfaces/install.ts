@@ -4,10 +4,10 @@ import { z } from "zod";
 import { isPlainObject, readRawJson, writeJsonAtomic } from "../infra/files.ts";
 import type { Paths } from "../infra/paths.ts";
 
-const DAEMON_LABEL = "app.claude-switch.daemon";
+export const DAEMON_LABEL = "app.claude-switch.daemon";
 const APP_LABEL = "app.claude-switch.menubar";
-const HOOK_EVENTS = ["UserPromptSubmit", "StopFailure"] as const;
-const MCP_NAME = "claude-switch";
+export const HOOK_EVENTS = ["UserPromptSubmit", "StopFailure"] as const;
+export const MCP_NAME = "claude-switch";
 
 export interface InstallLayout {
   bin: string;
