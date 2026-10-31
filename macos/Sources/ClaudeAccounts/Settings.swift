@@ -278,6 +278,28 @@ struct GeneralPane: View {
                 Text("Tell me when the CLI switches accounts, usage reaches the warning level, or a sign-in is about to expire.")
             }
         }
+        if let overview = store.overview, overview.idleCloseHours != nil || overview.mcpCleanup != nil {
+            Section("Housekeeping") {
+                if let hours = overview.idleCloseHours {
+                    Picker(selection: Binding(get: { hours }, set: { value in
+                        Task { await store.setConfig("idleCloseHours", "\(value)") }
+                    })) {
+                        ForEach(Self.idleOptions(including: hours), id: \.self) { Text(Self.idleLabel($0)).tag($0) }
+                    } label: {
+                        Text("Close idle Desktop profiles")
+                        Text("Quits a profile window when none of its sessions changed for this long. Its sessions stay saved; reopen it from the menu bar.")
+                    }
+                }
+                if let cleanup = overview.mcpCleanup {
+                    Toggle(isOn: Binding(get: { cleanup }, set: { on in
+                        Task { await store.setConfig("mcpCleanup", on ? "true" : "false") }
+                    })) {
+                        Text("Suggest removing unused MCP servers")
+                        Text("Once a month, offers to remove MCP servers no session has used in 30 days.")
+                    }
+                }
+            }
+        }
         Section("Setup") {
             LabeledContent("Setup assistant") {
                 Button("Show Setup Assistant…") {
@@ -294,6 +316,21 @@ struct GeneralPane: View {
             LabeledContent("Activity log") {
                 Button("Open") { store.openLog() }
             }
+        }
+    }
+}
+
+extension GeneralPane {
+    static func idleOptions(including current: Int) -> [Int] {
+        let base = [0, 1, 2, 3, 6, 12]
+        return base.contains(current) ? base : (base + [current]).sorted()
+    }
+
+    static func idleLabel(_ hours: Int) -> String {
+        switch hours {
+        case 0: "Off"
+        case 1: "After 1 hour"
+        default: "After \(hours) hours"
         }
     }
 }
