@@ -20,7 +20,27 @@ More detail, including the invariants that keep refresh tokens valid, is in [doc
 
 ## Install
 
-Requirements: macOS 15+, [Bun](https://bun.sh) 1.3+, Xcode command line tools (Swift 5.10+), Claude Code CLI.
+Requirements: macOS 15+ on Apple silicon, Claude Code CLI.
+
+### From a release
+
+Download `ClaudeAccounts-<version>-macos-arm64.zip` from [Releases](https://github.com/NurFajarSA/claude-switch/releases), unzip it and move `Claude Accounts.app` to `~/Applications`. The app bundles the `cs` CLI at `Contents/Resources/cs`. A standalone `cs-<version>-macos-arm64.tar.gz` is there too, and each file has a `.sha256` next to it.
+
+Or with Homebrew:
+
+```bash
+brew install --cask nurfajarsa/tap/claude-accounts
+```
+
+The cask lives in a separate tap repository, `NurFajarSA/homebrew-tap`, which has to exist before this works. Copy `packaging/homebrew/claude-accounts.rb` to `Casks/claude-accounts.rb` there; `scripts/update-cask.sh <version>` fills in the version and checksum after a release is packaged. The cask also links `cs` into your `PATH`.
+
+Builds without a Developer ID signature are only ad-hoc signed. The first time, right-click the app and choose Open (then Open again in the dialog), or run `xattr -dr com.apple.quarantine "/Applications/Claude Accounts.app"`. Releases built with a Developer ID certificate are notarized and open normally.
+
+Then run `cs install` to set up the poller, MCP server and hooks described below. It installs the app too, so pass the one you downloaded: `"/Applications/Claude Accounts.app/Contents/Resources/cs" install --app "/Applications/Claude Accounts.app"` (after a Homebrew install, `cs install --app "/Applications/Claude Accounts.app"`).
+
+### From source
+
+Requirements: [Bun](https://bun.sh) 1.3+, Xcode command line tools (Swift 5.10+).
 
 ```bash
 git clone https://github.com/NurFajarSA/claude-switch.git
@@ -119,6 +139,12 @@ bun run check        # typecheck + tests
 bun src/cli.ts status
 ./macos/build-app.sh
 ```
+
+### Releasing
+
+The version lives in `package.json` and feeds `cs --version`, the MCP server and the app's `Info.plist`. To release, bump it, move the `CHANGELOG.md` entries under the new version, and push a tag `v<version>`. The `Release` workflow tests, runs `scripts/package-release.sh` and publishes the zip and tarball with their checksums. Run the script locally to get the same files in `dist/release/`.
+
+Signing is optional. Set `DEVELOPER_ID_APP` to a codesign identity to sign with the hardened runtime. Add `NOTARY_PROFILE` (a `notarytool` keychain profile) or `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` to notarize and staple. In CI, set the secrets `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` for signing and the three `APPLE_*` secrets for notarization; without them the release is ad-hoc signed.
 
 Logs: `~/.config/claude-switch/claude-switch.log`.
 

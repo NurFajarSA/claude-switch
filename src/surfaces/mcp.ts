@@ -1,13 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import pkg from "../../package.json" with { type: "json" };
 import { type Engine, UserError } from "../core/engine.ts";
 import type { DesktopHub } from "../desktop/hub.ts";
 import { HandoffError } from "../desktop/sessions.ts";
 import { describeHandoff, describeSwitch } from "./messages.ts";
 import { renderProfiles, renderTable, toOverviewView } from "./view.ts";
 
-export const VERSION = "1.0.0";
+export const VERSION: string = pkg.version;
 
 export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: DesktopHub; env: NodeJS.ProcessEnv }): Promise<void> {
   const server = new McpServer({ name: "claude-switch", version: VERSION });
