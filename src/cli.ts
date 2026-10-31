@@ -10,6 +10,7 @@ import { MacKeychain } from "./infra/keychain.ts";
 import { fileLogger } from "./infra/log.ts";
 import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
+import { doctorCommand } from "./surfaces/doctor.ts";
 import { runHook } from "./surfaces/hook.ts";
 import { install, loginItemEnabled, setLoginItem, uninstall } from "./surfaces/install.ts";
 import { serveMcp, VERSION } from "./surfaces/mcp.ts";
@@ -49,6 +50,11 @@ const COMMANDS: Record<string, Command> = {
       out(heading("Claude Code CLI / VS Code login (● active)"));
       out(renderTable(view, color));
     },
+  },
+  doctor: {
+    usage: "cs doctor [--json]",
+    summary: "Check that Claude Code, Claude Desktop and the install still match what claude-switch expects",
+    run: (args) => doctorCommand(args, { paths, color: Boolean(color), out }),
   },
   register: {
     usage: "cs register [alias]",
