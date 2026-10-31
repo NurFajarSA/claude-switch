@@ -4,8 +4,8 @@
 # Template for Casks/accounts-manager-for-claude.rb in the NurFajarSA/homebrew-tap repository.
 # After a release is published, scripts/update-cask.sh <version> <tap-checkout> fills in the checksum and copies it there.
 cask "accounts-manager-for-claude" do
-  version "1.0.0"
-  sha256 "ac0e15a765151e882a61f042f582aa0ecf2329e5a582b1013dd2c4629a77056d"
+  version "1.0.1"
+  sha256 "5e122ed212ca9156d94fed11771f34a48fcf52dffc27ad1ad22998bbc5ab0c31"
 
   url "https://github.com/NurFajarSA/claude-switch/releases/download/v#{version}/AccountsManager-#{version}-macos-arm64.zip"
   name "Accounts Manager for Claude"
