@@ -9,6 +9,7 @@ import {
   type AccountConnector,
   CLAUDE_AI_ONLY,
   type ConnectorReport,
+  type McpServer,
   connectorsFromProfiles,
   localNameFor,
   mergeConnectors,
@@ -20,6 +21,22 @@ import {
 
 const LIST_TIMEOUT_MS = 90_000;
 const Learned = z.object({ version: z.literal(1), claudeOnly: z.array(z.string()) });
+// `claude mcp list` connects to every server and takes seconds; its last result is shown until the next one arrives.
+const HealthCache = z.object({
+  version: z.literal(1),
+  checkedAt: z.string(),
+  servers: z.array(
+    z.object({
+      name: z.string(),
+      origin: z.enum(["local", "plugin", "account"]),
+      target: z.string(),
+      transport: z.string().nullable(),
+      health: z.enum(["connected", "needs_auth", "degraded", "failed", "unknown"]),
+      detail: z.string(),
+      removable: z.boolean(),
+    }),
+  ),
+});
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export interface ImportResult {
@@ -42,17 +59,32 @@ export class ConnectorManager {
   async report({ check }: { check: boolean }): Promise<ConnectorReport> {
     const local = await readUserScope(this.deps.paths.claudeJson);
     const userScope = new Set(local.map((l) => l.name));
-    const servers = check
-      ? parseMcpList((await this.deps.run(["mcp", "list"], LIST_TIMEOUT_MS)).stdout, userScope)
-      : local.map((l) => ({
+    let servers: McpServer[];
+    let checkedAt: string | null = null;
+    if (check) {
+      servers = parseMcpList((await this.deps.run(["mcp", "list"], LIST_TIMEOUT_MS)).stdout, userScope);
+      checkedAt = new Date().toISOString();
+      await writeJsonAtomic(this.healthFile(), { version: 1, checkedAt, servers });
+    } else {
+      const cache = await readJson(this.healthFile(), HealthCache).catch(() => null);
+      checkedAt = cache?.checkedAt ?? null;
+      // Local servers come from ~/.claude.json, so one added or removed since the check shows up right away;
+      // a cached status only applies while the server still points at the same place.
+      servers = local.map((l) => {
+        const target = l.url ?? l.command ?? "";
+        const cached = cache?.servers.find((s) => s.origin === "local" && s.name === l.name && s.target === target);
+        return {
           name: l.name,
           origin: "local" as const,
-          target: l.url ?? l.command ?? "",
+          target,
           transport: l.url ? "http" : "stdio",
-          health: "unknown" as const,
-          detail: "not checked",
+          health: cached?.health ?? ("unknown" as const),
+          detail: cached?.detail ?? "not checked",
           removable: true,
-        }));
+        };
+      });
+      servers.push(...(cache?.servers.filter((s) => s.origin !== "local") ?? []));
+    }
     const [profiles, cliAccount] = await Promise.all([this.deps.hub.overview().then((o) => o.profiles.map((p) => p.profile)), this.deps.cliAccount()]);
     const connectors = mergeConnectors({
       fromProfiles: await connectorsFromProfiles(profiles),
@@ -61,7 +93,7 @@ export class ConnectorManager {
       cliAccount,
       claudeOnly: new Set(await this.learnedClaudeOnly()),
     });
-    return { servers, connectors, checked: check };
+    return { servers, connectors, checked: checkedAt !== null, checkedAt };
   }
 
   async importConnectors({ names, all }: { names: string[]; all: boolean }): Promise<ImportResult[]> {
@@ -97,6 +129,10 @@ export class ConnectorManager {
 
   private learnedFile(): string {
     return join(this.deps.paths.stateDir, "connectors.json");
+  }
+
+  private healthFile(): string {
+    return join(this.deps.paths.stateDir, "connectors-health.json");
   }
 
   private async learnedClaudeOnly(): Promise<string[]> {

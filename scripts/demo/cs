@@ -1,9 +1,12 @@
 #!/bin/zsh
 # Stand-in for cs that answers the menu bar app from the fixtures next to it, for screenshots.
 # Usage: CLAUDE_SWITCH_BIN=scripts/demo/cs "dist/Accounts Manager for Claude.app/Contents/MacOS/AccountsManager"
-# Paths in the fixtures use /Users/alex and follow CFFIXED_USER_HOME when it is set.
+# Paths in the fixtures use /Users/alex and follow CFFIXED_USER_HOME when it is set; __CHECKED_AT__ becomes 12 minutes ago.
 here=${0:A:h}
-show() { sed "s#/Users/alex#${CFFIXED_USER_HOME:-/Users/alex}#g" "$here/$1.json"; }
+show() {
+  sed -e "s#/Users/alex#${CFFIXED_USER_HOME:-/Users/alex}#g" \
+      -e "s#__CHECKED_AT__#$(date -u -v-12M +%Y-%m-%dT%H:%M:%SZ)#g" "$here/$1.json"
+}
 case "$1 $2" in
   "status "*) show status ;;
   "sessions "*) show sessions ;;

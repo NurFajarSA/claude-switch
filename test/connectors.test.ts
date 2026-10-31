@@ -131,3 +131,39 @@ describe("importing connectors that only work through claude.ai", () => {
     expect(server?.health).toBe("failed");
   });
 });
+
+describe("connector health cache", () => {
+  test("the quick report reuses the last check while each server still points at the same place", async () => {
+    const { ConnectorManager } = await import("../src/connectors/manager.ts");
+    const dir = await mkdtemp(join(tmpdir(), "claude-switch-health-"));
+    const claudeJson = join(dir, ".claude.json");
+    const config = (servers: Record<string, string>) =>
+      writeFile(claudeJson, JSON.stringify({ mcpServers: Object.fromEntries(Object.entries(servers).map(([n, url]) => [n, { type: "http", url }])) }));
+    await config({ figma: "https://mcp.figma.com/mcp", notion: "https://mcp.notion.com/mcp" });
+    const run = async (args: string[]) => ({
+      code: 0,
+      stdout: args[1] === "list"
+        ? ["figma: https://mcp.figma.com/mcp (HTTP) - ✔ Connected", "notion: https://mcp.notion.com/mcp (HTTP) - ! Needs authentication", "claude.ai Gmail: https://gmail.mcp.claude.com/mcp - ✔ Connected"].join("\n")
+        : "",
+      stderr: "",
+    });
+    const manager = new ConnectorManager({ paths: { claudeJson, stateDir: dir } as never, hub: { overview: async () => ({ profiles: [] }) }, run, cliAccount: async () => null });
+
+    const before = await manager.report({ check: false });
+    expect(before.checked).toBe(false);
+    expect(before.checkedAt).toBeNull();
+
+    const checked = await manager.report({ check: true });
+    await config({ figma: "https://mcp.figma.com/mcp", notion: "https://notion.example/mcp", linear: "https://mcp.linear.app/mcp" });
+    const quick = await manager.report({ check: false });
+
+    expect(quick.checked).toBe(true);
+    expect(quick.checkedAt).toBe(checked.checkedAt);
+    expect(quick.servers.map((s) => [s.name, s.health])).toEqual([
+      ["figma", "connected"],
+      ["notion", "unknown"],
+      ["linear", "unknown"],
+      ["Gmail", "connected"],
+    ]);
+  });
+});

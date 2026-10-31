@@ -153,6 +153,14 @@ struct ConnectorReport: Decodable {
     let servers: [McpServerRow]
     let connectors: [AccountConnectorRow]
     let checked: Bool
+    let checkedAt: String?
+
+    var checkedDate: Date? {
+        guard let checkedAt else { return nil }
+        let precise = ISO8601DateFormatter()
+        precise.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return precise.date(from: checkedAt) ?? ISO8601DateFormatter().date(from: checkedAt)
+    }
 }
 
 struct UnusedServer: Decodable, Hashable {

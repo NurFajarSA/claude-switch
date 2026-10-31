@@ -29,7 +29,10 @@ export interface AccountConnector {
 export interface ConnectorReport {
   servers: McpServer[];
   connectors: AccountConnector[];
+  /** Whether `health` comes from a check, now or the cached last one. */
   checked: boolean;
+  /** When that check ran (ISO time), or null if no check ever ran. */
+  checkedAt: string | null;
 }
 
 export type Runner = (args: string[], timeoutMs?: number) => Promise<{ code: number; stdout: string; stderr: string }>;

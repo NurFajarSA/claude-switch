@@ -808,7 +808,12 @@ struct ConnectorsPane: View {
                             .disabled(!store.signingIn.isEmpty)
                     }
                     Spacer()
-                    if store.connectorsChecking { ProgressView().controlSize(.small) }
+                    if store.connectorsChecking {
+                        ProgressView().controlSize(.small)
+                        Text("Checking…").font(.callout).foregroundStyle(.secondary)
+                    } else if let date = report.checkedDate {
+                        Text("Checked \(date.formatted(.relative(presentation: .named)))").font(.callout).foregroundStyle(.secondary)
+                    }
                     Button(report.checked ? "Check Again" : "Check Status") { Task { await store.loadConnectors(check: true) } }
                         .disabled(store.connectorsChecking)
                 }
@@ -882,9 +887,11 @@ struct ConnectorsPane: View {
         } else {
             Section { ProgressView().frame(maxWidth: .infinity) }
                 .task {
-                    // The list is instant; the health check asks every server and can take a while.
+                    // The list, with the last check's statuses, is instant; a new check asks every server and takes seconds.
                     await store.loadConnectors(check: false)
-                    await store.loadConnectors(check: true)
+                    if (store.connectors?.checkedDate).map({ Date().timeIntervalSince($0) > 600 }) ?? true {
+                        await store.loadConnectors(check: true)
+                    }
                 }
         }
     }
