@@ -36,12 +36,29 @@ export async function housekeep({ engine, hub, events, log, now = Date.now() }: 
       log.info("closed_idle_profile", { profile: profile.name });
     }
   }
+  if (config.vmShare) {
+    const shared = await hub.shareVmFiles();
+    if (shared.freedBytes > 0) {
+      await events.emit({
+        kind: "vm_shared",
+        title: `Freed ${formatBytes(shared.freedBytes)} of disk space`,
+        body: "Claude Desktop profiles now share one copy of their identical VM files. Each profile still sees its own.",
+        data: {},
+      });
+      log.info("vm_files_shared", { files: shared.shared.length, freedBytes: shared.freedBytes });
+    }
+  }
   const { store, usage, unused } = await findUnusedMcpServers({ engine, now });
   if (config.mcpCleanup && unused.length > 0 && (usage.notifiedAt === null || now - usage.notifiedAt >= UNUSED_DAYS * DAY_MS)) {
     await events.emit(mcpUnusedEvent(unused));
     await store.save({ ...usage, notifiedAt: now });
     log.info("mcp_unused_suggested", { servers: unused.map((s) => s.name) });
   }
+}
+
+/** Decimal units, as Finder shows sizes. */
+export function formatBytes(bytes: number): string {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`;
 }
 
 function mcpUnusedEvent(unused: readonly UnusedServer[]) {

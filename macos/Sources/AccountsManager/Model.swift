@@ -61,6 +61,8 @@ struct Overview: Decodable {
     let desktopUpdate: String?
     let idleCloseHours: Int?
     let mcpCleanup: Bool?
+    let vmShare: Bool?
+    let vmSharedBytes: Int64?
 }
 
 struct SessionRow: Decodable, Identifiable {

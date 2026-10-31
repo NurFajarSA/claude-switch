@@ -24,7 +24,7 @@ capture() {
   local env_args=() app_args=()
   while (( $# )) && [[ $1 != -- ]]; do env_args+=("$1"); shift; done
   (( $# )) && shift && app_args=("$@")
-  env ACCOUNTS_MANAGER_APPEARANCE=$appearance "${env_args[@]}" "$app" "${app_args[@]}" >/dev/null 2>&1 &
+  env ACCOUNTS_MANAGER_APPEARANCE=$appearance "${env_args[@]}" "$app" -AppleLanguages "(en)" -AppleLocale en_US "${app_args[@]}" >/dev/null 2>&1 &
   local pid=$! window=""
   for _ in {1..20}; do
     sleep 0.5

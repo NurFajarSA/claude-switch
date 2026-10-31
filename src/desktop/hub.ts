@@ -4,6 +4,7 @@ import { UserError } from "../core/engine.ts";
 import type { AccountId } from "../domain/account.ts";
 import { type Candidate, decideSwitch, type SwitchDecision, type UsageRecord } from "../domain/usage.ts";
 import { type IdleCandidate, idleProfiles } from "../housekeeping/idle.ts";
+import { type ShareResult, shareVmFiles, VmShareStore } from "../housekeeping/vm-share.ts";
 import { type DesktopWindows, frontmostPid, MacDesktopWindows, processStartedAt, profilePid, runningProfiles, type WindowAction } from "./process.ts";
 import { MAX_LABEL_LENGTH, ProfileLabels } from "./labels.ts";
 import { type DesktopProfile, discoverProfiles, displayName, resolveProfile } from "./profiles.ts";
@@ -103,6 +104,13 @@ export class DesktopHub {
       await Bun.sleep(2000);
     }
     return null;
+  }
+
+  async shareVmFiles({ dryRun = false }: { dryRun?: boolean } = {}): Promise<ShareResult> {
+    const profiles = await this.profiles({ sessionExpiry: false });
+    const running = await runningProfiles();
+    const open = new Set<string>(profiles.filter((p) => profilePid(running, p) !== undefined).map((p) => p.name));
+    return shareVmFiles({ profiles, store: new VmShareStore(this.engine.paths.stateDir), isRunning: (name) => open.has(name), dryRun });
   }
 
   async closeIdle({ idleHours }: { idleHours: number }): Promise<DesktopProfile[]> {

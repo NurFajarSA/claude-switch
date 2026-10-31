@@ -44,10 +44,11 @@ export interface StatusView {
   pollSeconds: number;
   idleCloseHours: number;
   mcpCleanup: boolean;
+  vmShare: boolean;
 }
 
 export function toView(status: Status, now = Date.now()): StatusView {
-  const { threshold, warnAt, autoSwitch, pollSeconds, idleCloseHours, mcpCleanup } = status.config;
+  const { threshold, warnAt, autoSwitch, pollSeconds, idleCloseHours, mcpCleanup, vmShare } = status.config;
   const accounts = status.accounts.map((a) => toRow(a, { threshold, warnAt, now }));
   return {
     active: accounts.find((a) => a.active) ?? null,
@@ -59,6 +60,7 @@ export function toView(status: Status, now = Date.now()): StatusView {
     pollSeconds,
     idleCloseHours,
     mcpCleanup,
+    vmShare,
   };
 }
 
@@ -180,6 +182,8 @@ export interface OverviewView extends StatusView {
   profiles: ProfileRow[];
   desktopVersion: string | null;
   desktopUpdate: string | null;
+  /** Bytes of Claude Desktop VM files stored once instead of per profile; set by `cs status`. */
+  vmSharedBytes?: number;
 }
 
 export function toOverviewView(overview: Overview, now = Date.now()): OverviewView {

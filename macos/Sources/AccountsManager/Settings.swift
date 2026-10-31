@@ -278,7 +278,7 @@ struct GeneralPane: View {
                 Text("Tell me when the CLI switches accounts, usage reaches the warning level, or a sign-in is about to expire.")
             }
         }
-        if let overview = store.overview, overview.idleCloseHours != nil || overview.mcpCleanup != nil {
+        if let overview = store.overview, overview.idleCloseHours != nil || overview.mcpCleanup != nil || overview.vmShare != nil {
             Section("Housekeeping") {
                 if let hours = overview.idleCloseHours {
                     Picker(selection: Binding(get: { hours }, set: { value in
@@ -296,6 +296,14 @@ struct GeneralPane: View {
                     })) {
                         Text("Suggest removing unused MCP servers")
                         Text("Once a month, offers to remove MCP servers no session has used in 30 days.")
+                    }
+                }
+                if let share = overview.vmShare {
+                    Toggle(isOn: Binding(get: { share }, set: { on in
+                        Task { await store.setConfig("vmShare", on ? "true" : "false") }
+                    })) {
+                        Text("Share Claude Desktop VM files")
+                        Text(Self.vmShareDetail(overview.vmSharedBytes ?? 0))
                     }
                 }
             }
@@ -321,6 +329,12 @@ struct GeneralPane: View {
 }
 
 extension GeneralPane {
+    static func vmShareDetail(_ bytes: Int64) -> String {
+        let base = "Every profile downloads its own copy of the same 11 GB VM. Identical copies are stored once as APFS clones; each profile still sees its own."
+        guard bytes > 0 else { return base }
+        return base + " Saving " + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) + "."
+    }
+
     static func idleOptions(including current: Int) -> [Int] {
         let base = [0, 1, 2, 3, 6, 12]
         return base.contains(current) ? base : (base + [current]).sorted()

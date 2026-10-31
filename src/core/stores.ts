@@ -173,6 +173,7 @@ export const ConfigSchema = z.object({
   autoSwitch: z.boolean().default(true),
   idleCloseHours: z.number().int().min(0).max(48).default(3),
   mcpCleanup: z.boolean().default(true),
+  vmShare: z.boolean().default(true),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 

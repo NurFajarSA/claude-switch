@@ -13,7 +13,8 @@ import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
 import { claudeRunner, ConnectorManager, interactiveClaude } from "./connectors/manager.ts";
 import { RulesStore } from "./core/rules-store.ts";
-import { findUnusedMcpServers } from "./housekeeping/housekeeping.ts";
+import { findUnusedMcpServers, formatBytes } from "./housekeeping/housekeeping.ts";
+import { VmShareStore } from "./housekeeping/vm-share.ts";
 import { EventLog } from "./infra/events.ts";
 import { accountDirectory, namesOf, resolveAccount } from "./surfaces/accounts.ts";
 import { doctorCommand } from "./surfaces/doctor.ts";
@@ -55,7 +56,7 @@ const COMMANDS: Record<string, Command> = {
       const { values } = parseArgs({ args, options: { refresh: { type: "boolean" }, json: { type: "boolean" } } });
       if (values.refresh) await engine.pollAll();
       const view = toOverviewView(await hub.overview());
-      if (values.json) return out(JSON.stringify(view, null, 2));
+      if (values.json) return out(JSON.stringify({ ...view, vmSharedBytes: (await new VmShareStore(paths.stateDir).load()).sharedBytes }, null, 2));
       out(heading("Claude Desktop (● window open)"));
       out(renderProfiles(view, color));
       out("");
@@ -234,9 +235,23 @@ const COMMANDS: Record<string, Command> = {
       out(`Removed ${(await engine.remove(target)).alias}.`);
     },
   },
+  "share-vm": {
+    usage: "cs share-vm [--dry-run] [--json]",
+    summary: "Store the Claude Desktop VM files that profiles have in common once (APFS clones)",
+    run: async (args) => {
+      const { values } = parseArgs({ args, options: { "dry-run": { type: "boolean" }, json: { type: "boolean" } } });
+      const result = await hub.shareVmFiles({ dryRun: values["dry-run"] });
+      if (values.json) return out(JSON.stringify(result, null, 2));
+      const verb = values["dry-run"] ? "Would share" : "Shared";
+      for (const file of result.shared) out(`${verb} ${file.profile}/${file.rel} (${formatBytes(file.size)})`);
+      for (const file of result.skipped) out(`Skipped ${file.profile}/${file.rel}: ${file.reason}`);
+      if (result.shared.length === 0 && result.skipped.length === 0) out("Nothing to share: every identical VM file is already stored once.");
+      out(`${values["dry-run"] ? "Would free" : "Freed"} ${formatBytes(result.freedBytes)}. Stored once across profiles: ${formatBytes(result.sharedBytes)}.`);
+    },
+  },
   config: {
     usage: "cs config [key] [value]",
-    summary: "Show or change threshold, warnAt, pollSeconds, autoSwitch",
+    summary: "Show or change threshold, warnAt, pollSeconds, autoSwitch, idleCloseHours, mcpCleanup, vmShare",
     run: async ([key, value]) => {
       const config = await engine.config.load();
       if (!key) return out(JSON.stringify(config, null, 2));

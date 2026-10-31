@@ -52,6 +52,7 @@ A long agent run on one subscription stops when that subscription reaches its 5-
 **Housekeeping**
 - Quits Claude Desktop profiles that have been idle for 3 hours.
 - Suggests removing MCP servers that were not used for 30 days.
+- Stores the Claude Desktop VM that every profile downloads (about 11 GB each) once, as APFS clones.
 
 ## Use cases
 
@@ -87,11 +88,13 @@ A window only reads its session list at startup. A session moved into a window t
 
 You connected Figma, Notion and Linear on claude.ai with one account. **Settings › Connectors › Import All** adds the ones with a public URL to this Mac, so every account uses them. Servers that need a sign-in get a **Sign In** button.
 
-### Idle profiles close themselves
+### Several profiles without the memory and disk cost
 
-<img src="docs/images/settings-general.png" width="600" alt="Settings window on the General pane with Launch at Login, Housekeeping options for closing idle profiles and suggesting unused MCP server cleanup, and Notifications">
+<img src="docs/images/settings-general.png" width="600" alt="Settings window on the General pane with Launch at Login, Notifications, and Housekeeping options for closing idle profiles, suggesting unused MCP server cleanup, and sharing Claude Desktop VM files, saving 24.27 GB">
 
 A Desktop window left open overnight can use more than 1 GB of memory. After 3 hours without session changes, the background service quits it, and a notification offers **Open Again**. It never quits the window in front, or a window opened within the last 3 hours. Sessions stay saved.
+
+Every profile also downloads its own 11 GB copy of the Claude Desktop VM. The service keeps one copy on disk and gives each profile an APFS clone of it, so four profiles cost about 11 GB instead of 45.
 
 ## Install
 
@@ -184,6 +187,7 @@ Measured on Claude Code 2.1, a CLI login lasts about 28 days from sign-in, and r
 | `pollSeconds` | `300` | How often the background service checks usage |
 | `idleCloseHours` | `3` | Quit Desktop profiles idle this long; `0` turns it off |
 | `mcpCleanup` | `true` | Suggest removing MCP servers unused for 30 days |
+| `vmShare` | `true` | Store identical Claude Desktop VM files once, as APFS clones |
 
 <img src="docs/images/settings-desktop-profiles.png" width="600" alt="Settings window on the Desktop Profiles pane listing each profile with its account, usage and sign-in status">
 
@@ -220,7 +224,9 @@ Every 5 minutes, the background service quits Claude Desktop profiles whose sess
 
 Once a day, it reads Claude Code transcripts to see which MCP servers are used. At most once a month, it offers to remove servers unused for 30 days.
 
-Change or turn off both in **Settings › General › Housekeeping**, or with `cs config idleCloseHours <hours|0>` and `cs config mcpCleanup false`. `cs events` lists what the service did on its own.
+Each Claude Desktop profile downloads its own copy of the same Linux VM, about 11 GB. The service stores identical copies once, as APFS clones: every profile keeps its own files with the same content and dates, but the disk holds the data once. If Claude Desktop later changes one copy, only the changed blocks are stored separately. It skips profiles whose window is open and files any process has open, and checks each file again right before replacing it. `cs share-vm --dry-run` shows what it would do.
+
+Change or turn off all three in **Settings › General › Housekeeping**, or with `cs config idleCloseHours <hours|0>`, `cs config mcpCleanup false` and `cs config vmShare false`. `cs events` lists what the service did on its own.
 
 ## Use it from an agent
 
@@ -256,6 +262,7 @@ Change or turn off both in **Settings › General › Housekeeping**, or with `c
 | `cs rules [list] \| set \| allow \| remove` | Manages project rules |
 | `cs connectors [list [--check] \| import \| add \| remove \| login \| logout]` | Manages MCP servers and claude.ai connectors |
 | `cs events [--since <time>] [--json]` | Lists what the background service did on its own |
+| `cs share-vm [--dry-run] [--json]` | Stores the Claude Desktop VM files that profiles have in common once |
 | `cs login-item [on\|off]` | Shows or changes whether the app opens at login |
 | `cs poll` | Fetches usage for every account once |
 | `cs statusline` | Prints a one-line summary for a Claude Code status line |

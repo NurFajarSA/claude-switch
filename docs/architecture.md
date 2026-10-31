@@ -69,3 +69,9 @@ The hook and the MCP server know which Desktop session they run in from `CLAUDE_
 ## Project rules
 
 `~/.config/claude-switch/rules.json` maps folders to account ids. `ruleFor` picks the deepest rule whose folder contains the session folder (the hook's `cwd`, or the MCP server's working directory, which Claude Code sets to the project). `decideSwitch` takes the allowed set: an active account outside it must move even with usage left, candidates outside it are never chosen, and the best outside candidate is returned with `exhausted` so the hook can offer it as a one-off. Desktop profiles and CLI accounts share account ids, so one rule covers both.
+
+## Housekeeping
+
+The daemon runs `housekeep` every 5 minutes: it closes idle Desktop profiles, suggests removing unused MCP servers, and shares Claude Desktop VM files.
+
+Each profile keeps a Linux VM under `vm_bundles/claudevm.bundle` (a 10 GB `rootfs.img`, its 1.2 GB `.zst` archive, a kernel and initrd), and profiles on the same Claude Desktop version have byte-identical copies. `shareVmFiles` groups files by their path inside `vm_bundles`, size and SHA-256, keeps one source per group, and replaces every other copy with a clone of it (`cp -c -p` to a temporary name, then `rename`), so the data blocks are stored once. Hashes are cached in `vm-share.json` by inode, size and mtime, so a 10 GB file is hashed again only after it changes. A copy is left alone when its profile's window is open, when `lsof` shows it open, or when its inode, size or mtime changed since it was hashed. Clones are copy-on-write, so a later write by Claude Desktop to one copy splits only the blocks it touches.

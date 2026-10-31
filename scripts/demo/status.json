@@ -153,6 +153,7 @@
   "pollSeconds": 300,
   "idleCloseHours": 3,
   "mcpCleanup": true,
+  "vmShare": true,
   "desktopVersion": "1.4.0",
   "desktopUpdate": null,
   "profiles": [
@@ -342,5 +343,6 @@
       "loginDaysLeft": 21,
       "loginExpiring": false
     }
-  ]
+  ],
+  "vmSharedBytes": 24266612736
 }

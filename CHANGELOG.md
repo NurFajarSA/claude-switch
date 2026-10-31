@@ -24,7 +24,7 @@ First release.
 - Login expiry warnings: days left on each CLI and Desktop login, with a warning 5 days ahead.
 - Project rules: `cs rules` and a Settings page that limit a project folder to chosen accounts. When every allowed account is used up, Claude asks whether to wait, use another account once, or allow it for the project.
 - Connectors: `cs connectors` and a Settings page to list MCP servers with their health, import claude.ai connectors as local servers so they work in every account, and sign in to them from the app.
-- Housekeeping: Desktop profiles idle for a set time are closed (with **Open Again** in the notification), and MCP servers unused for 30 days are offered for removal once a month.
+- Housekeeping: Desktop profiles idle for a set time are closed (with **Open Again** in the notification), MCP servers unused for 30 days are offered for removal once a month, and identical Claude Desktop VM files (about 11 GB per profile) are stored once as APFS clones (`cs share-vm`).
 - `cs install` and `cs uninstall` for the binary, LaunchAgent, menu bar app, MCP server and hooks. `cs install` clears the quarantine flag on what it installs, so ad-hoc signed releases run.
 - `install.sh`: a one-line installer that downloads the latest release, verifies its SHA-256 and runs `cs install`.
 - Release packaging: `scripts/package-release.sh` builds a zip of the app and a tarball of `cs`, with optional Developer ID signing and notarization, and a Homebrew cask template.
