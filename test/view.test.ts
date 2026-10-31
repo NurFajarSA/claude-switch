@@ -7,6 +7,7 @@ import { toOverviewView } from "../src/surfaces/view.ts";
 const state = (name: string, accountId: string | null): ProfileState => ({
   profile: {
     name: name as ProfileName,
+    label: null,
     dir: `/profiles/Claude-${name}`,
     isDefault: false,
     accountId: accountId ? AccountId(accountId) : null,

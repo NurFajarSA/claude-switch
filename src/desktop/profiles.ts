@@ -8,6 +8,7 @@ export type ProfileName = string & { readonly __brand: "ProfileName" };
 
 export interface DesktopProfile {
   name: ProfileName;
+  label: string | null;
   dir: string;
   isDefault: boolean;
   accountId: AccountId | null;
@@ -41,20 +42,22 @@ const UsageHistory = z.object({
 
 const PROFILE_DIR = /^Claude(-[A-Za-z0-9._-]+)?$/;
 
-export async function discoverProfiles(appSupportDir: string): Promise<DesktopProfile[]> {
+export async function discoverProfiles(appSupportDir: string, labels: Readonly<Record<string, string>> = {}): Promise<DesktopProfile[]> {
   const entries = await readdir(appSupportDir, { withFileTypes: true }).catch(() => []);
   const dirs = entries.filter((e) => e.isDirectory() && PROFILE_DIR.test(e.name)).map((e) => join(appSupportDir, e.name));
-  const profiles = await Promise.all(dirs.map(loadProfile));
+  const profiles = await Promise.all(dirs.map((dir) => loadProfile(dir, labels)));
   return profiles.filter((p): p is DesktopProfile => p !== null).sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name));
 }
 
-async function loadProfile(dir: string): Promise<DesktopProfile | null> {
+async function loadProfile(dir: string, labels: Readonly<Record<string, string>>): Promise<DesktopProfile | null> {
   const config = await readJson(join(dir, "config.json"), DesktopConfig).catch(() => null);
   if (!config) return null;
   const folder = basename(dir);
   const isDefault = folder === "Claude";
+  const name = (isDefault ? "default" : folder.slice("Claude-".length)) as ProfileName;
   return {
-    name: (isDefault ? "default" : folder.slice("Claude-".length)) as ProfileName,
+    name,
+    label: labels[name] ?? null,
     dir,
     isDefault,
     accountId: config.lastKnownAccountUuid ? toAccountId(config.lastKnownAccountUuid) : null,
@@ -84,6 +87,14 @@ async function latestUsage(dir: string): Promise<DesktopUsageSample | null> {
 }
 
 export function resolveProfile(profiles: readonly DesktopProfile[], query: string): DesktopProfile | undefined {
-  const q = query.toLowerCase();
-  return profiles.find((p) => p.name.toLowerCase() === q) ?? profiles.find((p) => basename(p.dir).toLowerCase() === q);
+  const q = query.trim().toLowerCase();
+  return (
+    profiles.find((p) => p.name.toLowerCase() === q) ??
+    profiles.find((p) => p.label?.toLowerCase() === q) ??
+    profiles.find((p) => basename(p.dir).toLowerCase() === q)
+  );
+}
+
+export function displayName(profile: DesktopProfile): string {
+  return profile.label ?? profile.name;
 }

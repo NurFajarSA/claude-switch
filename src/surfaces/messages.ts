@@ -1,5 +1,6 @@
 import type { SwitchResult } from "../core/engine.ts";
 import type { HandoffOutcome, TargetWindow } from "../desktop/hub.ts";
+import { displayName } from "../desktop/profiles.ts";
 
 const WINDOW_TEXT: Record<TargetWindow, string> = {
   focused: "Its window is in front; the session is at the top of the Code sidebar.",
@@ -30,7 +31,7 @@ export function describeHandoff(outcome: HandoffOutcome): string {
       const source = outcome.result.sourceArchived
         ? "The copy in the old profile was archived."
         : "The old window is still open; stop sending messages there so both windows do not write to the same conversation.";
-      return `Moved "${title}" to profile "${outcome.to.profile.name}". ${WINDOW_TEXT[outcome.window]} ${source}`;
+      return `Moved "${title}" to profile "${displayName(outcome.to.profile)}". ${WINDOW_TEXT[outcome.window]} ${source}`;
     }
     case "stay":
       return `Not moved: ${outcome.reason}.`;

@@ -44,7 +44,7 @@ export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: Desk
       description:
         "Continue the current Claude Desktop conversation under another account. Copies this session into the target account's Desktop profile, with the full transcript, and opens that window. Omit `to` to pick the account with the most remaining usage; closed windows are preferred because an open window only loads new sessions when it restarts. After it succeeds, finish your reply and tell the user to continue in the named window; do not keep working in this one.",
       inputSchema: {
-        to: z.string().optional().describe("Desktop profile name, e.g. fajar-x-2; omit to choose automatically"),
+        to: z.string().optional().describe("Desktop profile name or label, as shown by list_accounts; omit to choose automatically"),
         session: z.string().optional().describe("Desktop session id (local_…); defaults to the current conversation"),
         restart: z
           .boolean()

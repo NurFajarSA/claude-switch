@@ -46,7 +46,7 @@ final class Store {
         if profile.running {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
-            alert.messageText = "Buka ulang jendela \(profile.name)?"
+            alert.messageText = "Buka ulang jendela \(profile.label)?"
             alert.informativeText = "Jendela yang sedang terbuka baru menampilkan sesi pindahan setelah dibuka ulang. Pekerjaan yang sedang berjalan di jendela itu akan terhenti."
             alert.addButton(withTitle: "Buka ulang")
             alert.addButton(withTitle: "Nanti saja")
@@ -57,6 +57,18 @@ final class Store {
 
     func useForCLI(_ account: AccountRow) async {
         await perform(["switch", account.alias])
+    }
+
+    func renameAccount(_ account: AccountRow, to alias: String) async {
+        await perform(["rename", account.alias, alias])
+    }
+
+    func label(_ profile: ProfileRow, as label: String?) async {
+        if let label, !label.trimmingCharacters(in: .whitespaces).isEmpty {
+            await perform(["label", profile.name, label])
+        } else {
+            await perform(["label", profile.name, "--clear"])
+        }
     }
 
     func setAutoSwitch(_ on: Bool) async {

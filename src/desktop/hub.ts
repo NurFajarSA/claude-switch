@@ -4,7 +4,8 @@ import { UserError } from "../core/engine.ts";
 import type { AccountId } from "../domain/account.ts";
 import { type Candidate, decideSwitch, type SwitchDecision, type UsageRecord } from "../domain/usage.ts";
 import { type DesktopWindows, MacDesktopWindows, type WindowAction } from "./process.ts";
-import { type DesktopProfile, discoverProfiles, resolveProfile } from "./profiles.ts";
+import { MAX_LABEL_LENGTH, ProfileLabels } from "./labels.ts";
+import { type DesktopProfile, discoverProfiles, displayName, resolveProfile } from "./profiles.ts";
 import { type DesktopSession, findSession, type HandoffResult, handoffSession, listSessions } from "./sessions.ts";
 
 export interface ProfileState {
@@ -37,6 +38,7 @@ export class DesktopHub {
   private readonly appSupportDir: string;
   private readonly windows: DesktopWindows;
   private readonly now: () => number;
+  private readonly labels: ProfileLabels;
 
   constructor(
     private readonly engine: Engine,
@@ -45,10 +47,30 @@ export class DesktopHub {
     this.appSupportDir = options.appSupportDir ?? join(engine.paths.home, "Library", "Application Support");
     this.windows = options.windows ?? new MacDesktopWindows();
     this.now = options.now ?? Date.now;
+    this.labels = new ProfileLabels(engine.paths.stateDir);
+  }
+
+  async setLabel(profileQuery: string, label: string | null): Promise<{ profile: DesktopProfile; label: string | null }> {
+    const profiles = await this.profiles();
+    const profile = this.requireProfile(profiles, profileQuery);
+    const clean = label?.trim() || null;
+    if (clean !== null) {
+      if (clean.length > MAX_LABEL_LENGTH) throw new UserError(`A label can be at most ${MAX_LABEL_LENGTH} characters.`);
+      const clash = profiles.find(
+        (p) => p !== profile && (p.name.toLowerCase() === clean.toLowerCase() || p.label?.toLowerCase() === clean.toLowerCase()),
+      );
+      if (clash) throw new UserError(`"${clean}" is already used by profile ${displayName(clash)}.`);
+    }
+    await this.labels.set(profile.name, clean === profile.name ? null : clean);
+    return { profile, label: clean === profile.name ? null : clean };
+  }
+
+  private async profiles(): Promise<DesktopProfile[]> {
+    return discoverProfiles(this.appSupportDir, await this.labels.load());
   }
 
   async overview(): Promise<Overview> {
-    const [status, profiles] = await Promise.all([this.engine.status(), discoverProfiles(this.appSupportDir)]);
+    const [status, profiles] = await Promise.all([this.engine.status(), this.profiles()]);
     const running = await Promise.all(profiles.map((p) => this.windows.isRunning(p)));
     const byAccount = new Map(status.accounts.map((a) => [a.record.id, a]));
     return {
@@ -70,13 +92,13 @@ export class DesktopHub {
   }
 
   async sessions(profileName?: string): Promise<DesktopSession[]> {
-    const profiles = await discoverProfiles(this.appSupportDir);
+    const profiles = await this.profiles();
     const selected = profileName ? [this.requireProfile(profiles, profileName)] : profiles;
     return (await Promise.all(selected.map((p) => listSessions(p)))).flat().sort((a, b) => (b.card.lastActivityAt ?? 0) - (a.card.lastActivityAt ?? 0));
   }
 
   async open(profileName: string): Promise<{ profile: DesktopProfile; how: WindowAction }> {
-    const profile = this.requireProfile(await discoverProfiles(this.appSupportDir), profileName);
+    const profile = this.requireProfile(await this.profiles(), profileName);
     return { profile, how: await this.windows.open(profile) };
   }
 
@@ -147,7 +169,7 @@ export class DesktopHub {
 
   private requireProfile(profiles: readonly DesktopProfile[], name: string): DesktopProfile {
     const profile = resolveProfile(profiles, name);
-    if (!profile) throw new UserError(`Unknown Desktop profile "${name}". Known: ${profiles.map((p) => p.name).join(", ")}.`);
+    if (!profile) throw new UserError(`Unknown Desktop profile "${name}". Known: ${profiles.map(displayName).join(", ")}.`);
     return profile;
   }
 }

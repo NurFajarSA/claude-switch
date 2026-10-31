@@ -239,3 +239,43 @@ describe("DesktopHub.handoff", () => {
     expect(restartWindows.actions).toEqual(["restart terbuka"]);
   });
 });
+
+describe("profile labels", () => {
+  const labelled = async () => {
+    const t = await setup();
+    const root = await fixture([
+      { folder: "Claude", account: "acct-main", sessions: [card("local_src")] },
+      { folder: "Claude-3p", account: "acct-3p", sessions: [card("local_3", { cliSessionId: "c3" })] },
+    ]);
+    return { t, hub: new DesktopHub(t.engine, { appSupportDir: root, windows: new FakeWindows(), now: () => NOW }) };
+  };
+
+  test("a label replaces the folder name in the overview and can be used to pick a handoff target", async () => {
+    const { hub } = await labelled();
+    await hub.setLabel("3p", "  Klien 3P  ");
+
+    const names = (await hub.overview()).profiles.map((p) => [String(p.profile.name), p.profile.label]);
+    const outcome = await hub.handoff({ sessionId: "local_src", to: "klien 3p", force: true, open: false });
+
+    expect(names).toEqual([
+      ["default", null],
+      ["3p", "Klien 3P"],
+    ]);
+    expect(outcome.kind === "moved" ? String(outcome.to.profile.name) : null).toBe("3p");
+  });
+
+  test("clearing a label, or setting it to the folder name, shows the folder name again", async () => {
+    const { hub } = await labelled();
+    await hub.setLabel("3p", "Klien");
+    await hub.setLabel("Klien", null);
+    await hub.setLabel("default", "default");
+
+    expect((await hub.overview()).profiles.map((p) => p.profile.label)).toEqual([null, null]);
+  });
+
+  test("rejects labels that are too long or already name another profile", async () => {
+    const { hub } = await labelled();
+    await expect(hub.setLabel("3p", "x".repeat(41))).rejects.toThrow("at most 40");
+    await expect(hub.setLabel("3p", "Default")).rejects.toThrow("already used by profile default");
+  });
+});

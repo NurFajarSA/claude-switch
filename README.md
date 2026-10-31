@@ -66,7 +66,7 @@ Claude Code CLI / VS Code login (● active)
 
 ## Using it
 
-**Menu bar.** Click the gauge. Each Desktop profile shows its usage and an action menu: open the window, or move any recent session into it. The CLI section switches the CLI login.
+**Menu bar.** Click the gauge. Each Desktop profile shows its usage and an action menu (also on right-click): open the window, rename it, or move any recent session into it. Profiles whose account is not registered with `cs add` are folded under "Lainnya". The CLI section switches and renames CLI accounts. Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
 
 **From an agent.** The MCP server gives Claude three tools:
 
@@ -91,6 +91,7 @@ cs handoff <id> [--to name] [--restart]  move a Desktop session to another profi
 cs open <profile>                     open or focus a Desktop window
 cs switch <alias> | --auto            change the CLI login
 cs add [alias] / cs register [alias]  add accounts
+cs label <profile> "<name>" | --clear   display name for a Desktop profile (folder unchanged)
 cs rename <alias> <new> / cs remove <alias>
 cs config [key] [value]               threshold (95), warnAt (85), pollSeconds (120), autoSwitch (true)
 ```

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Engine } from "../core/engine.ts";
 import type { DesktopHub, HandoffOutcome } from "../desktop/hub.ts";
+import { displayName } from "../desktop/profiles.ts";
 import { blockingPercent, freshReading } from "../domain/usage.ts";
 import type { Logger } from "../infra/log.ts";
 import { describeSwitch } from "./messages.ts";
@@ -77,7 +78,7 @@ async function cliNearLimit(engine: Engine, threshold: number): Promise<boolean>
 function desktopMessage(event: string, outcome: HandoffOutcome): HookOutput | null {
   switch (outcome.kind) {
     case "moved": {
-      const target = outcome.to.profile.name;
+      const target = displayName(outcome.to.profile);
       const user = `claude-switch: this account is near its limit. The session was copied to the "${target}" Desktop profile; continue there.${outcome.window === "needs_reopen" ? " Reopen that window first (Cmd+Q, then open it)." : ""}`;
       const reopen = outcome.window === "needs_reopen" ? ` That window was already open, so the user must quit it (Cmd+Q) and open it again before the session shows up.` : "";
       const agent = `The user's Claude account for this window is near its usage limit. claude-switch copied this session to the "${target}" Claude Desktop profile.${reopen} Answer the current message briefly, then tell the user to continue in the "${target}" window.`;

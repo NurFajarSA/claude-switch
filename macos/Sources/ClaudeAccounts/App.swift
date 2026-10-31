@@ -7,7 +7,7 @@ struct ClaudeAccountsApp: App {
     var body: some Scene {
         MenuBarExtra {
             Panel(store: store)
-                .frame(width: 400)
+                .frame(width: 400, height: 560)
         } label: {
             let headline = store.headline
             HStack(spacing: 3) {
@@ -21,257 +21,311 @@ struct ClaudeAccountsApp: App {
 }
 
 extension Severity {
-    var color: Color {
+    var tint: Color {
         switch self {
         case .ok: .green
         case .warn: .orange
         case .critical: .red
-        case .unknown: .secondary
+        case .unknown: .gray
         }
     }
 }
 
 struct Panel: View {
     let store: Store
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            if let message = store.error {
-                Banner(text: message, tint: .red)
-            } else if let notice = store.notice {
-                Banner(text: notice, tint: .accentColor)
-            }
-            if let overview = store.overview {
-                DesktopSection(store: store, overview: overview)
-                Divider()
-                CLISection(store: store, overview: overview)
-            } else if store.error == nil {
-                ProgressView().frame(maxWidth: .infinity)
-            }
-            Divider()
-            footer
-        }
-        .padding(14)
-    }
-
-    private var header: some View {
-        HStack {
-            Text("Akun Claude").font(.headline)
-            Spacer()
-            if store.busy { ProgressView().controlSize(.small) }
-            Button {
-                Task { await store.refreshLive() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.borderless)
-            .help("Ambil angka usage terbaru dari semua akun")
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            if let overview = store.overview {
-                Toggle(
-                    "Pindah otomatis di \(overview.threshold)%",
-                    isOn: Binding(get: { overview.autoSwitch }, set: { on in Task { await store.setAutoSwitch(on) } })
-                )
-                .toggleStyle(.switch)
-                .controlSize(.small)
-            }
-            Spacer()
-            Menu {
-                Button("Tambah akun CLI…") { store.addAccount() }
-                Button("Buka log") { store.openLog() }
-                Divider()
-                Button("Keluar") { NSApplication.shared.terminate(nil) }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-        }
-        .font(.callout)
-    }
-}
-
-struct DesktopSection: View {
-    let store: Store
-    let overview: Overview
     @AppStorage("showOtherProfiles") private var showOthers = false
 
     var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                if let message = store.error {
+                    Section {
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
+                    }
+                } else if let notice = store.notice {
+                    Section {
+                        Label(notice, systemImage: "checkmark.circle.fill")
+                            .textSelection(.enabled)
+                    }
+                }
+                if let overview = store.overview {
+                    desktopSection(overview)
+                    cliSection(overview)
+                    Section {
+                        Toggle(
+                            "Pindah otomatis di \(overview.threshold)%",
+                            isOn: Binding(get: { overview.autoSwitch }, set: { on in Task { await store.setAutoSwitch(on) } })
+                        )
+                    } footer: {
+                        Text("Saat akun aktif mencapai batas ini, sesi Desktop dipindah dan login CLI diganti ke akun dengan sisa limit terbanyak.")
+                    }
+                } else if store.error == nil {
+                    Section { ProgressView().frame(maxWidth: .infinity) }
+                }
+            }
+            .formStyle(.grouped)
+            Divider()
+            toolbar
+        }
+    }
+
+    @ViewBuilder
+    private func desktopSection(_ overview: Overview) -> some View {
         let registered = overview.profiles.filter(\.registered)
         let others = overview.profiles.filter { !$0.registered }
-        VStack(alignment: .leading, spacing: 8) {
-            SectionTitle(title: "Claude Desktop", caption: "satu jendela per akun")
+        Section {
             if registered.isEmpty {
-                Text("Belum ada profil yang akunnya terdaftar. Jalankan `cs add <nama>` di Terminal.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Belum ada profil dengan akun terdaftar.").foregroundStyle(.secondary)
             }
-            ForEach(registered) { line($0) }
+            ForEach(registered) { profileRow($0) }
             if !others.isEmpty {
-                DisclosureGroup(isExpanded: $showOthers) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Login di Desktop, belum didaftarkan dengan `cs add`. Angkanya dari catatan Desktop.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        ForEach(others) { line($0) }
-                    }
-                    .padding(.top, 6)
-                } label: {
-                    Text("Lainnya (\(others.count))").font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("Lainnya (\(others.count))", isExpanded: $showOthers) {
+                    ForEach(others) { profileRow($0) }
                 }
+            }
+        } header: {
+            Text("Claude Desktop")
+        } footer: {
+            if !others.isEmpty && showOthers {
+                Text("Profil di Lainnya login di Desktop tapi belum didaftarkan dengan cs add, jadi angkanya dari catatan Desktop.")
             }
         }
     }
 
-    private func line(_ profile: ProfileRow) -> some View {
-        ProfileLine(store: store, profile: profile, movable: store.sessions.filter { $0.profile != profile.name })
+    private func profileRow(_ profile: ProfileRow) -> some View {
+        ProfileRowView(store: store, profile: profile, movable: store.sessions.filter { $0.profile != profile.name })
+    }
+
+    @ViewBuilder
+    private func cliSection(_ overview: Overview) -> some View {
+        Section {
+            if overview.accounts.isEmpty {
+                if let current = overview.unregisteredActive {
+                    LabeledContent("Login sekarang", value: current)
+                    Button("Daftarkan akun ini") { Task { await store.registerCurrent() } }
+                } else {
+                    Text("Belum ada akun terdaftar.").foregroundStyle(.secondary)
+                }
+            } else {
+                Picker(
+                    "Akun aktif",
+                    selection: Binding(
+                        get: { overview.accounts.first(where: \.active)?.id ?? "" },
+                        set: { id in
+                            guard let account = overview.accounts.first(where: { $0.id == id }), !account.active else { return }
+                            Task { await store.useForCLI(account) }
+                        }
+                    )
+                ) {
+                    ForEach(overview.accounts) { account in
+                        Text(account.alias).tag(account.id)
+                    }
+                }
+                .disabled(store.busy)
+                ForEach(overview.accounts) { AccountRowView(store: store, account: $0) }
+            }
+        } header: {
+            Text("Claude Code CLI & VS Code")
+        }
+    }
+
+    private var toolbar: some View {
+        HStack {
+            Button {
+                Task { await store.refreshLive() }
+            } label: {
+                Label("Perbarui", systemImage: "arrow.clockwise")
+            }
+            .disabled(store.busy)
+            Button {
+                store.addAccount()
+            } label: {
+                Label("Tambah akun", systemImage: "plus")
+            }
+            Spacer()
+            if store.busy { ProgressView().controlSize(.small) }
+            Menu {
+                Button("Buka log") { store.openLog() }
+                Divider()
+                Button("Keluar Claude Accounts") { NSApplication.shared.terminate(nil) }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 
-struct ProfileLine: View {
+struct ProfileRowView: View {
     let store: Store
     let profile: ProfileRow
     let movable: [SessionRow]
+    @State private var editing = false
+    @State private var draft = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(profile.running ? Color.green : Color.secondary.opacity(0.35))
-                .frame(width: 7, height: 7)
-                .padding(.top, 6)
-                .help(profile.running ? "Jendela terbuka" : "Jendela tertutup")
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(profile.name).fontWeight(.medium)
-                    Text(profile.email ?? profile.accountId.map { "akun \($0.prefix(8))" } ?? "belum login")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    UsageGauge(percent: profile.percent, severity: profile.severity)
-                }
-                Text(detail).font(.caption2).foregroundStyle(.secondary)
+        LabeledContent {
+            HStack(spacing: 8) {
+                UsageView(percent: profile.percent, severity: profile.severity)
+                actions
             }
-            Menu {
-                Button(profile.running ? "Tampilkan jendela" : "Buka jendela") { Task { await store.open(profile) } }
-                if profile.accountId != nil {
-                    Divider()
-                    Section("Pindahkan sesi ke \(profile.name)") {
-                        if movable.isEmpty { Text("Tidak ada sesi lain") }
-                        ForEach(movable) { session in
-                            Button("\(session.title) · \(session.profile)") { Task { await store.move(session, to: profile) } }
-                        }
-                    }
+        } label: {
+            if editing {
+                TextField("Nama profil", text: $draft, prompt: Text(profile.name))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused)
+                    .onSubmit(save)
+                    .onExitCommand { editing = false }
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "macwindow")
+                        .foregroundStyle(profile.running ? Color.green : Color.secondary)
+                        .help(profile.running ? "Jendela terbuka" : "Jendela tertutup")
+                    Text(profile.label)
                 }
-            } label: {
-                Image(systemName: "chevron.down.circle")
+                Text(subtitle)
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
+        }
+        .contextMenu { menuItems }
+    }
+
+    private var actions: some View {
+        Menu {
+            menuItems
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(.borderless)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private var menuItems: some View {
+        Button(profile.running ? "Tampilkan jendela" : "Buka jendela") { Task { await store.open(profile) } }
+        Button("Ubah nama…") {
+            draft = profile.label
+            editing = true
+            focused = true
+        }
+        if profile.customLabel {
+            Button("Kembalikan nama folder (\(profile.name))") { Task { await store.label(profile, as: nil) } }
+        }
+        Divider()
+        Menu("Pindahkan sesi ke sini") {
+            if movable.isEmpty { Text("Tidak ada sesi lain") }
+            ForEach(movable) { session in
+                Button("\(session.title) · \(session.profileLabel)") { Task { await store.move(session, to: profile) } }
+            }
         }
     }
 
-    private var detail: String {
-        var parts = profile.windows.map { w in "\(w.label) \(w.percent)%" + (w.resetsIn.map { ", reset \($0)" } ?? "") }
+    private var subtitle: String {
+        var parts = [profile.email ?? profile.accountId.map { "akun \($0.prefix(8))" } ?? "belum login"]
+        if let window = profile.windows.first {
+            parts.append("\(window.label) \(window.percent)%" + (window.resetsIn.map { ", reset \($0)" } ?? ""))
+        }
         switch profile.usageSource {
-        case "live": parts.append("live \(profile.usageAge ?? "")")
-        case "desktop": parts.append("dari Desktop \(profile.usageAge ?? "")")
-        default: parts.append(profile.registered ? "belum ada data" : "daftarkan di CLI untuk angka live")
+        case "live": parts.append("live")
+        case "desktop": parts.append("Desktop, \(profile.usageAge ?? "")")
+        default: break
         }
         if let problem = profile.problem { parts.append(problem) }
         return parts.joined(separator: " · ")
     }
-}
 
-struct CLISection: View {
-    let store: Store
-    let overview: Overview
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionTitle(title: "Claude Code CLI & VS Code", caption: "satu login, bisa diganti")
-            if overview.accounts.isEmpty {
-                Text(overview.unregisteredActive.map { "Login sekarang: \($0). Daftarkan agar bisa dipantau." } ?? "Belum ada akun terdaftar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if overview.unregisteredActive != nil {
-                    Button("Daftarkan akun ini") { Task { await store.registerCurrent() } }.controlSize(.small)
-                }
-            }
-            ForEach(overview.accounts) { account in
-                HStack(spacing: 8) {
-                    Image(systemName: account.active ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(account.active ? Color.accentColor : Color.secondary)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(account.alias).fontWeight(account.active ? .semibold : .regular)
-                        Text(account.problem ?? "\(account.email) · \(account.plan)")
-                            .font(.caption2)
-                            .foregroundStyle(account.problem == nil ? Color.secondary : Color.orange)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    UsageGauge(percent: account.percent, severity: account.severity)
-                    if !account.active {
-                        Button("Pakai") { Task { await store.useForCLI(account) } }
-                            .controlSize(.small)
-                            .disabled(!account.healthy || store.busy)
-                    }
-                }
-            }
-        }
+    private func save() {
+        let value = draft.trimmingCharacters(in: .whitespaces)
+        editing = false
+        guard value != profile.label else { return }
+        Task { await store.label(profile, as: value.isEmpty ? nil : value) }
     }
 }
 
-struct UsageGauge: View {
+struct AccountRowView: View {
+    let store: Store
+    let account: AccountRow
+    @State private var editing = false
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        LabeledContent {
+            HStack(spacing: 8) {
+                UsageView(percent: account.percent, severity: account.severity)
+                Menu {
+                    menuItems
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuIndicator(.hidden)
+                .buttonStyle(.borderless)
+                .fixedSize()
+            }
+        } label: {
+            if editing {
+                TextField("Alias", text: $draft, prompt: Text(account.alias))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused)
+                    .onSubmit(save)
+                    .onExitCommand { editing = false }
+            } else {
+                HStack(spacing: 6) {
+                    Text(account.alias)
+                    if account.active {
+                        Text("aktif").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text(account.problem ?? "\(account.email) · \(account.plan)")
+                    .foregroundStyle(account.problem == nil ? Color.secondary : Color.orange)
+            }
+        }
+        .contextMenu { menuItems }
+    }
+
+    @ViewBuilder
+    private var menuItems: some View {
+        if !account.active {
+            Button("Pakai untuk CLI & VS Code") { Task { await store.useForCLI(account) } }
+                .disabled(!account.healthy)
+        }
+        Button("Ubah nama…") {
+            draft = account.alias
+            editing = true
+            focused = true
+        }
+    }
+
+    private func save() {
+        let value = draft.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: " ", with: "-")
+        editing = false
+        guard !value.isEmpty, value != account.alias else { return }
+        Task { await store.renameAccount(account, to: value) }
+    }
+}
+
+struct UsageView: View {
     let percent: Int?
     let severity: Severity
 
     var body: some View {
         HStack(spacing: 6) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.18))
-                    Capsule()
-                        .fill(severity.color)
-                        .frame(width: geo.size.width * CGFloat(min(max(percent ?? 0, 0), 100)) / 100)
-                }
-            }
-            .frame(width: 70, height: 6)
+            ProgressView(value: Double(min(max(percent ?? 0, 0), 100)), total: 100)
+                .progressViewStyle(.linear)
+                .tint(severity.tint)
+                .frame(width: 70)
+                .opacity(percent == nil ? 0.35 : 1)
             Text(percent.map { "\($0)%" } ?? "–")
-                .font(.caption.monospacedDigit())
-                .frame(width: 34, alignment: .trailing)
-                .foregroundStyle(percent == nil ? Color.secondary : Color.primary)
+                .monospacedDigit()
+                .foregroundStyle(percent == nil ? .secondary : .primary)
+                .frame(width: 38, alignment: .trailing)
         }
-    }
-}
-
-struct SectionTitle: View {
-    let title: String
-    let caption: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.subheadline).fontWeight(.semibold)
-            Text(caption).font(.caption2).foregroundStyle(.secondary)
-        }
-    }
-}
-
-struct Banner: View {
-    let text: String
-    let tint: Color
-
-    var body: some View {
-        Text(text)
-            .font(.caption)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-            .textSelection(.enabled)
     }
 }

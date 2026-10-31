@@ -140,6 +140,8 @@ export function summaryLine(view: StatusView): string {
 
 export interface ProfileRow {
   name: string;
+  label: string;
+  customLabel: boolean;
   folder: string;
   running: boolean;
   accountId: string | null;
@@ -170,6 +172,8 @@ export function toOverviewView(overview: Overview, now = Date.now()): OverviewVi
       const record = p.account?.record;
       return {
         name: p.profile.name,
+        label: p.profile.label ?? p.profile.name,
+        customLabel: p.profile.label !== null,
         folder: p.profile.dir,
         running: p.running,
         accountId: p.profile.accountId,
@@ -192,13 +196,13 @@ export function renderProfiles(view: OverviewView, color: boolean): string {
   const paint = (s: Severity, text: string) => (color ? `${ANSI[s]}${text}\x1b[0m` : text);
   const dim = (text: string) => (color ? `\x1b[2m${text}\x1b[0m` : text);
   if (view.profiles.length === 0) return "No Claude Desktop profiles found.";
-  const width = Math.max(...view.profiles.map((p) => p.name.length), 7);
+  const width = Math.max(...view.profiles.map((p) => p.label.length), 7);
   const lines = view.profiles.map((p) => {
     const marker = p.running ? paint("ok", "●") : dim("○");
     const usage = p.percent === null ? dim("usage unknown".padEnd(16)) : `${paint(p.severity, bar(p.percent))} ${String(p.percent).padStart(3)}%`;
     const who = p.email ?? (p.accountId ? `account ${p.accountId.slice(0, 8)}` : "not signed in");
     const source = p.usageSource === "desktop" ? dim(` (Desktop, ${p.usageAge})`) : p.usageSource === "live" ? dim(` (live, ${p.usageAge})`) : "";
-    return `${marker} ${p.name.padEnd(width)}  ${usage}  ${who}${source}`;
+    return `${marker} ${p.label.padEnd(width)}  ${usage}  ${who}${source}`;
   });
   return lines.join("\n");
 }

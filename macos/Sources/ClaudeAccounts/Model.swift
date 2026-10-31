@@ -13,6 +13,8 @@ enum Severity: String, Decodable {
 struct ProfileRow: Decodable, Identifiable {
     var id: String { folder }
     let name: String
+    let label: String
+    let customLabel: Bool
     let folder: String
     let running: Bool
     let accountId: String?
@@ -55,6 +57,7 @@ struct Overview: Decodable {
 struct SessionRow: Decodable, Identifiable {
     let id: String
     let profile: String
+    let profileLabel: String
     let title: String
     let lastActivityAt: String?
 }

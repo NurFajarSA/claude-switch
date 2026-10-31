@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { Engine, UserError } from "./core/engine.ts";
 import { type Config, ConfigSchema } from "./core/stores.ts";
 import { DesktopHub } from "./desktop/hub.ts";
+import { displayName } from "./desktop/profiles.ts";
 import { HandoffError } from "./desktop/sessions.ts";
 import { HttpAnthropicApi } from "./infra/anthropic.ts";
 import { MacKeychain } from "./infra/keychain.ts";
@@ -115,13 +116,14 @@ const COMMANDS: Record<string, Command> = {
       const rows = sessions.map((s) => ({
         id: s.card.sessionId,
         profile: s.profile.name,
+        profileLabel: displayName(s.profile),
         title: s.card.title ?? "(untitled)",
         lastActivityAt: s.card.lastActivityAt ? new Date(s.card.lastActivityAt).toISOString() : null,
       }));
       if (values.json) return out(JSON.stringify(rows, null, 2));
       for (const r of rows) {
         const age = r.lastActivityAt ? `${until(Date.now(), Date.parse(r.lastActivityAt))} ago` : "";
-        out(`${r.profile.padEnd(12)} ${r.title.slice(0, 50).padEnd(50)} ${age.padStart(10)}  ${r.id}`);
+        out(`${r.profileLabel.padEnd(12)} ${r.title.slice(0, 50).padEnd(50)} ${age.padStart(10)}  ${r.id}`);
       }
     },
   },
@@ -145,7 +147,19 @@ const COMMANDS: Record<string, Command> = {
     run: async ([name]) => {
       if (!name) throw new UserError("Name a profile (see `cs status`).");
       const { profile, how } = await hub.open(name);
-      out(`${how === "focused" ? "Focused" : "Launched"} ${profile.name}.`);
+      out(`${how === "focused" ? "Focused" : "Launched"} ${displayName(profile)}.`);
+    },
+  },
+  label: {
+    usage: "cs label <profile> <label> | --clear",
+    summary: "Give a Desktop profile a display name (its folder is not renamed)",
+    run: async (args) => {
+      const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { clear: { type: "boolean" } } });
+      const [profile, ...words] = positionals;
+      const text = words.join(" ");
+      if (!profile || (!values.clear && !text)) throw new UserError('Usage: cs label <profile> "<label>"  or  cs label <profile> --clear');
+      const result = await hub.setLabel(profile, values.clear ? null : text);
+      out(result.label ? `${result.profile.name} is now shown as "${result.label}".` : `${result.profile.name} shows its folder name again.`);
     },
   },
   rename: {
