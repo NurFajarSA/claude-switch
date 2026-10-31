@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
-    case general, autoSwitch, accounts, profiles, usage, updates, about
+    case general, autoSwitch, accounts, profiles, connectors, usage, updates, about
 
     var id: String { rawValue }
 
@@ -12,6 +12,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .autoSwitch: "Auto-switch"
         case .accounts: "CLI Accounts"
         case .profiles: "Desktop Profiles"
+        case .connectors: "Connectors"
         case .usage: "Usage"
         case .updates: "Updates"
         case .about: "About"
@@ -24,6 +25,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .autoSwitch: "Move to another account before the one in use hits its limit."
         case .accounts: "Accounts the Claude Code CLI and VS Code can sign in with. One is in use at a time."
         case .profiles: "Each Claude Desktop profile is its own window, signed in to one account."
+        case .connectors: "MCP servers on this Mac work in every account. Bring claude.ai connectors here so switching accounts keeps your tools."
         case .usage: "How often Claude Accounts checks each account’s 5-hour and weekly limits."
         case .updates: "Keep every Claude Desktop profile open across app updates."
         case .about: "Usage for every Claude account, session handoff between Desktop profiles, and automatic CLI switching."
@@ -36,6 +38,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .autoSwitch: "arrow.triangle.2.circlepath"
         case .accounts: "terminal.fill"
         case .profiles: "macwindow"
+        case .connectors: "puzzlepiece.extension.fill"
         case .usage: "gauge.with.dots.needle.67percent"
         case .updates: "arrow.down.circle.fill"
         case .about: "info.circle.fill"
@@ -48,6 +51,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .autoSwitch: .green
         case .accounts: .indigo
         case .profiles: .blue
+        case .connectors: .purple
         case .usage: .orange
         case .updates: .teal
         case .about: .blue
@@ -60,13 +64,14 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .autoSwitch: ["threshold", "switch", "limit", "warning", "percent"]
         case .accounts: ["cli", "vs code", "sign in", "rename", "remove", "account"]
         case .profiles: ["desktop", "window", "profile", "session", "move"]
+        case .connectors: ["mcp", "connector", "server", "tools", "figma", "github", "notion"]
         case .usage: ["poll", "refresh", "interval", "minutes"]
         case .updates: ["update", "version", "install"]
         case .about: ["version", "github"]
         }
     }
 
-    static let main: [SettingsPane] = [.general, .autoSwitch, .accounts, .profiles, .usage, .updates]
+    static let main: [SettingsPane] = [.general, .autoSwitch, .accounts, .profiles, .connectors, .usage, .updates]
 }
 
 enum SettingsRoute: Hashable {
@@ -228,6 +233,7 @@ struct PaneContent: View {
                 case .accounts: AccountsPane(store: store, overview: overview)
                 case .profiles: ProfilesPane(store: store, overview: overview)
                 case .usage: UsagePane(store: store, overview: overview)
+                case .connectors: ConnectorsPane(store: store)
                 case .updates: UpdatesPane(store: store, overview: overview)
                 case .about: EmptyView()
                 }
@@ -637,5 +643,98 @@ enum LoginItem {
         FileManager.default.fileExists(
             atPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents/app.claude-switch.menubar.plist").path
         )
+    }
+}
+
+struct ConnectorsPane: View {
+    let store: Store
+
+    var body: some View {
+        if let report = store.connectors {
+            Section {
+                ForEach(report.servers.filter { $0.origin != "account" }) { server in
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            HealthBadge(health: server.health, checked: report.checked)
+                            if server.removable && server.name != "claude-switch" {
+                                Menu {
+                                    Button("Remove…", role: .destructive) { Task { await store.removeServer(server) } }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                }
+                                .menuStyle(.borderlessButton)
+                                .menuIndicator(.hidden)
+                                .fixedSize()
+                                .accessibilityLabel("Actions for \(server.name)")
+                            }
+                        }
+                    } label: {
+                        Text(server.origin == "plugin" ? server.name.replacingOccurrences(of: "plugin:", with: "") : server.name)
+                        Text(server.origin == "plugin" ? "From a plugin · \(host(server.target))" : host(server.target))
+                    }
+                }
+                HStack {
+                    Button("Add Server…") { Task { await store.addServer() } }
+                    Button("Sign In…") { store.signInToServers() }
+                    Spacer()
+                    if store.connectorsChecking { ProgressView().controlSize(.small) }
+                    Button(report.checked ? "Check Again" : "Check Status") { Task { await store.loadConnectors(check: true) } }
+                        .disabled(store.connectorsChecking)
+                }
+            } header: {
+                Text("On this Mac")
+            } footer: {
+                Text("These work in the CLI, VS Code and Claude Desktop’s Code tab for every account, and stay signed in when you switch.")
+            }
+            let portable = report.connectors.filter { $0.portability == "portable" && $0.localName == nil }
+            Section {
+                ForEach(report.connectors) { connector in
+                    LabeledContent {
+                        if let local = connector.localName {
+                            StatusBadge(text: "On This Mac", color: .green).help("Added as \(local)")
+                        } else if connector.portability == "portable" {
+                            Button("Add to This Mac") { Task { await store.importConnector(connector) } }
+                        } else {
+                            StatusBadge(text: "claude.ai Only", color: .secondary)
+                        }
+                    } label: {
+                        Text(connector.name)
+                        Text(connector.accounts.joined(separator: ", "))
+                    }
+                }
+                if !portable.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button("Add All \(portable.count) to This Mac") { Task { await store.importConnector(nil) } }
+                    }
+                }
+            } header: {
+                Text("Connectors in your Claude accounts")
+            } footer: {
+                Text("After adding, sign in to each one once with Sign In…. Then turn the claude.ai copy off in claude.ai › Settings › Connectors so tools don’t show up twice.")
+            }
+        } else {
+            Section { ProgressView().frame(maxWidth: .infinity) }
+                .task { await store.loadConnectors(check: false) }
+        }
+    }
+
+    private func host(_ target: String) -> String {
+        URL(string: target)?.host() ?? target
+    }
+}
+
+struct HealthBadge: View {
+    let health: String
+    let checked: Bool
+
+    var body: some View {
+        switch health {
+        case "connected": StatusBadge(text: "Connected", color: .green)
+        case "needs_auth": StatusBadge(text: "Sign In Needed", color: .orange)
+        case "degraded": StatusBadge(text: "Partly Working", color: .orange)
+        case "failed": StatusBadge(text: "Failed", color: .red)
+        default: if checked { StatusBadge(text: "Unknown", color: .secondary) } else { EmptyView() }
+        }
     }
 }

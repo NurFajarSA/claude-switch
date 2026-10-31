@@ -9,6 +9,8 @@ final class Store {
     var sessions: [SessionRow] = []
     var loadError: String?
     var busy = false
+    var connectors: ConnectorReport?
+    var connectorsChecking = false
     var listHeight: CGFloat?
     var csInstalled = false
     var daemonInstalled = false
@@ -227,6 +229,58 @@ final class Store {
         await reload()
     }
 
+    func loadConnectors(check: Bool) async {
+        connectorsChecking = check
+        defer { connectorsChecking = false }
+        do {
+            connectors = try await CS.decode(ConnectorReport.self, ["connectors", "list", "--json"] + (check ? ["--check"] : []))
+        } catch {
+            Dialog.warn(title: "Couldn’t read MCP servers", message: error.localizedDescription)
+        }
+    }
+
+    func importConnector(_ connector: AccountConnectorRow?) async {
+        await perform(["connectors", "import"] + (connector.map { [$0.name] } ?? ["--all"]), report: "Connectors added")
+        await loadConnectors(check: false)
+    }
+
+    func removeServer(_ server: McpServerRow) async {
+        guard Dialog.confirm(
+            title: "Remove \(server.name)?",
+            message: "Every account on this Mac stops using this MCP server. You can add it again later.",
+            confirm: "Remove",
+            cancel: "Cancel"
+        ) else { return }
+        await perform(["connectors", "remove", server.name])
+        await loadConnectors(check: false)
+    }
+
+    func addServer() async {
+        guard let fields = Dialog.promptPair(
+            title: "Add an MCP server",
+            message: "Every account on this Mac can use it. Most servers ask you to sign in once with /mcp in Claude Code.",
+            first: "Name",
+            second: "https://example.com/mcp"
+        ) else { return }
+        await perform(["connectors", "add", fields.0, fields.1])
+        await loadConnectors(check: false)
+    }
+
+    func signInToServers() {
+        runShellInTerminal("echo 'Type /mcp, pick a server and sign in. Quit with /exit when done.'; echo; claude")
+    }
+
+    private func runShellInTerminal(_ command: String) {
+        let script = FileManager.default.temporaryDirectory.appendingPathComponent("claude-switch-mcp.command")
+        do {
+            try "#!/bin/zsh -l\n\(command)\n".write(to: script, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+            NSWorkspace.shared.open(script)
+        } catch {
+            Dialog.warn(title: "Couldn’t open Terminal", message: error.localizedDescription)
+        }
+    }
+
     private func runInTerminal(_ arguments: [String]) {
         let script = FileManager.default.temporaryDirectory.appendingPathComponent("claude-switch-\(arguments.first ?? "run").command")
         let quoted = ([CS.binary.path] + arguments).map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }.joined(separator: " ")
@@ -250,6 +304,25 @@ enum Dialog {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+
+    static func promptPair(title: String, message: String, first: String, second: String) -> (String, String)? {
+        let name = NSTextField(string: "")
+        name.placeholderString = first
+        let url = NSTextField(string: "")
+        url.placeholderString = second
+        let stack = NSStackView(views: [name, url])
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 300, height: 56)
+        name.frame.size.width = 300
+        url.frame.size.width = 300
+        let alert = make(title: title, message: message, buttons: ["Add", "Cancel"])
+        alert.accessoryView = stack
+        alert.window.initialFirstResponder = name
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let pair = (name.stringValue.trimmingCharacters(in: .whitespaces), url.stringValue.trimmingCharacters(in: .whitespaces))
+        return pair.0.isEmpty || pair.1.isEmpty ? nil : pair
     }
 
     static func confirm(title: String, message: String, confirm: String, cancel: String) -> Bool {

@@ -10,6 +10,7 @@ import { MacKeychain } from "./infra/keychain.ts";
 import { fileLogger } from "./infra/log.ts";
 import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
+import { claudeRunner, ConnectorManager } from "./connectors/manager.ts";
 import { doctorCommand } from "./surfaces/doctor.ts";
 import { runHook } from "./surfaces/hook.ts";
 import { install, loginItemEnabled, setLoginItem, uninstall } from "./surfaces/install.ts";
@@ -22,6 +23,12 @@ const log = fileLogger(paths.logFile);
 const engine = new Engine({ paths, secrets: new MacKeychain(), api: new HttpAnthropicApi(), log });
 const hub = new DesktopHub(engine);
 const color = process.stdout.isTTY && !process.env.NO_COLOR;
+const connectors = new ConnectorManager({
+  paths,
+  hub,
+  run: claudeRunner(Bun.which("claude")),
+  cliAccount: async () => (await engine.status()).accounts.find((a) => a.live)?.record.alias ?? null,
+});
 
 type Handler = (args: string[]) => Promise<void>;
 
@@ -238,6 +245,56 @@ const COMMANDS: Record<string, Command> = {
       out(`${key} = ${String(saved[key as keyof Config])}`);
       if (saved.warnAt !== next.data.warnAt || saved.threshold !== next.data.threshold) {
         out(`warnAt = ${saved.warnAt}, threshold = ${saved.threshold} (the warning level stays below the switch level)`);
+      }
+    },
+  },
+  connectors: {
+    usage: "cs connectors [list [--check] [--json] | import <name…> | import --all | add <name> <url> [--header 'K: V'] | remove <name>]",
+    summary: "Manage MCP servers on this Mac and bring claude.ai connectors to every account",
+    run: async (args) => {
+      const [action = "list", ...rest] = args;
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { check: { type: "boolean" }, json: { type: "boolean" }, all: { type: "boolean" }, header: { type: "string", multiple: true } },
+      });
+      switch (action) {
+        case "list": {
+          const report = await connectors.report({ check: values.check ?? false });
+          if (values.json) return out(JSON.stringify(report, null, 2));
+          out(heading("On this Mac (every account uses these)"));
+          for (const s of report.servers.filter((x) => x.origin !== "account")) {
+            out(`  ${s.name.padEnd(28)} ${s.health.padEnd(11)} ${s.target}`);
+          }
+          if (!report.checked) out("  (run with --check to test each server; it takes a few seconds)");
+          out("");
+          out(heading("From your Claude accounts"));
+          for (const c of report.connectors) {
+            const state = c.localName ? `on this Mac as ${c.localName}` : c.portability === "portable" ? "can be added" : "claude.ai only";
+            out(`  ${c.name.padEnd(28)} ${state.padEnd(30)} ${c.accounts.join(", ")}`);
+          }
+          return;
+        }
+        case "import": {
+          const results = await connectors.importConnectors({ names: positionals, all: values.all ?? false });
+          for (const r of results) out(`${r.ok ? "✓" : "✗"} ${r.connector}${r.name ? ` → ${r.name}` : ""}: ${r.detail}`);
+          if (results.some((r) => r.ok && r.detail.startsWith("added"))) out("\nSign in to each new server once: run `claude`, then `/mcp`.");
+          return;
+        }
+        case "add": {
+          const [name, url] = positionals;
+          if (!name || !url) throw new UserError("Usage: cs connectors add <name> <url> [--header 'K: V']");
+          await connectors.add({ name, url, headers: values.header ?? [] });
+          return out(`Added ${name}. Sign in once with \`claude\` then \`/mcp\` if it asks.`);
+        }
+        case "remove": {
+          const [name] = positionals;
+          if (!name) throw new UserError("Usage: cs connectors remove <name>");
+          await connectors.remove(name);
+          return out(`Removed ${name}.`);
+        }
+        default:
+          throw new UserError(`Unknown action "${action}". Use list, import, add or remove.`);
       }
     },
   },

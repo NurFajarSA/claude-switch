@@ -123,3 +123,29 @@ enum CS {
         try JSONDecoder().decode(type, from: try await run(arguments))
     }
 }
+
+struct McpServerRow: Decodable, Identifiable, Hashable {
+    var id: String { "\(origin):\(name)" }
+    let name: String
+    let origin: String
+    let target: String
+    let transport: String?
+    let health: String
+    let detail: String
+    let removable: Bool
+}
+
+struct AccountConnectorRow: Decodable, Identifiable, Hashable {
+    var id: String { url }
+    let name: String
+    let url: String
+    let accounts: [String]
+    let portability: String
+    let localName: String?
+}
+
+struct ConnectorReport: Decodable {
+    let servers: [McpServerRow]
+    let connectors: [AccountConnectorRow]
+    let checked: Bool
+}
