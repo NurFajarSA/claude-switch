@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - `cs install --app` leaves an app that is already in `/Applications` or `~/Applications` in place instead of copying it to `~/Applications`, and Launch at Login finds the app in either folder. Before, a Homebrew install ended up with two copies, and after `brew upgrade` the one opened at login was the old copy.
+- The Connectors page in Settings shows the server list right away and fills in each server's status when the health check finishes, instead of a spinner for the whole check (several seconds, up to 90 with slow servers).
 - `cs share-vm` names profiles as the menu bar does (for example `xplodia`), not by folder (`fajar-x`).
 
 ## [1.0.0] - 2026-11-01

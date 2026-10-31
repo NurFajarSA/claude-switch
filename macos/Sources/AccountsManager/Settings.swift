@@ -800,7 +800,11 @@ struct ConnectorsPane: View {
             }
         } else {
             Section { ProgressView().frame(maxWidth: .infinity) }
-                .task { await store.loadConnectors(check: true) }
+                .task {
+                    // The list is instant; the health check asks every server and can take a while.
+                    await store.loadConnectors(check: false)
+                    await store.loadConnectors(check: true)
+                }
         }
     }
 
