@@ -62,7 +62,7 @@ export async function runHook({
   const config = await engine.config.load();
   if (!config.autoSwitch) return null;
 
-  const cwd = input.cwd ?? process.cwd();
+  const cwd = input.cwd || process.cwd();
   const rule = ruleFor(await new RulesStore(engine.paths.stateDir).list(), cwd);
   const directory = rule ? accountDirectory(await hub.overview({ light: true })) : [];
   const ctx: Context = { engine, hub, log, event, hitLimit, threshold: config.threshold, rule, project: basename(rule?.path ?? cwd), directory, now };

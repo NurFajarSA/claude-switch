@@ -16,7 +16,7 @@ export const VERSION: string = pkg.version;
 export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: DesktopHub; env: NodeJS.ProcessEnv }): Promise<void> {
   const server = new McpServer({ name: "claude-switch", version: VERSION });
   const currentSession = env.CLAUDE_CODE_HOST_SESSION_ID?.startsWith("local_") ? env.CLAUDE_CODE_HOST_SESSION_ID : undefined;
-  const projectDir = env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  const projectDir = env.CLAUDE_PROJECT_DIR || process.cwd();
   const rules = new RulesStore(engine.paths.stateDir);
   const projectRule = async () => ruleFor(await rules.list(), projectDir);
 
