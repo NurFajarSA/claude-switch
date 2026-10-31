@@ -1,5 +1,5 @@
 import { copyFile, cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { isPlainObject, readRawJson, writeJsonAtomic } from "../infra/files.ts";
 import type { Paths } from "../infra/paths.ts";
@@ -8,6 +8,7 @@ export const DAEMON_LABEL = "app.claude-switch.daemon";
 const APP_LABEL = "app.claude-switch.menubar";
 export const APP_NAME = "Accounts Manager for Claude.app";
 const LEGACY_APP_NAMES = ["Claude Accounts.app"];
+const SYSTEM_APP_DIR = "/Applications";
 export const HOOK_EVENTS = ["UserPromptSubmit", "StopFailure"] as const;
 export const MCP_NAME = "claude-switch";
 
@@ -71,9 +72,15 @@ export async function install({ paths, sourceBinary, app }: { paths: Paths; sour
   if (app) {
     await step("menu bar app", async () => {
       await mkdir(l.appDir, { recursive: true });
-      const target = join(l.appDir, basename(app));
-      for (const name of new Set([basename(app), ...LEGACY_APP_NAMES])) await removeApp(join(l.appDir, name));
-      await cp(app, target, { recursive: true });
+      // An app already in an Applications folder (Homebrew puts it in /Applications) stays where it is.
+      const source = resolve(app);
+      const inPlace = [l.appDir, SYSTEM_APP_DIR].includes(dirname(source));
+      const target = inPlace ? source : join(l.appDir, basename(app));
+      for (const name of new Set([basename(app), ...LEGACY_APP_NAMES])) {
+        const copy = join(l.appDir, name);
+        if (copy !== target || !inPlace) await removeApp(copy);
+      }
+      if (!inPlace) await cp(app, target, { recursive: true });
       await unquarantine(target);
       const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
       await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", target], { keepAlive: false, log: paths.logFile });
@@ -117,8 +124,8 @@ export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: 
   const l = layout(paths);
   const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
   if (enabled) {
-    const app = join(l.appDir, APP_NAME);
-    if (!(await exists(app))) throw new Error(`${app} is not installed`);
+    const app = await installedApp(l);
+    if (!app) throw new Error(`${APP_NAME} is not installed in ${l.appDir} or ${SYSTEM_APP_DIR}`);
     await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", app], { keepAlive: false, log: paths.logFile });
   } else {
     await sh(["/bin/launchctl", "bootout", `gui/${process.getuid?.() ?? 501}/${APP_LABEL}`], { allowFailure: true });
@@ -131,6 +138,11 @@ export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: 
 // Gatekeeper then kills the poller and hooks without a prompt. Running install is the consent.
 async function unquarantine(path: string): Promise<void> {
   await sh(["/usr/bin/xattr", "-dr", "com.apple.quarantine", path], { allowFailure: true });
+}
+
+async function installedApp(l: InstallLayout): Promise<string | null> {
+  for (const dir of [l.appDir, SYSTEM_APP_DIR]) if (await exists(join(dir, APP_NAME))) return join(dir, APP_NAME);
+  return null;
 }
 
 async function removeApp(app: string): Promise<void> {

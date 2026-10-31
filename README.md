@@ -129,7 +129,7 @@ brew install --cask nurfajarsa/tap/accounts-manager-for-claude
 cs install --app "/Applications/Accounts Manager for Claude.app"
 ```
 
-The cask links `cs` into your `PATH` and clears the quarantine flag after installing. It lives in a separate tap repository, `NurFajarSA/homebrew-tap`, which has to exist before this works. Copy `packaging/homebrew/accounts-manager-for-claude.rb` to `Casks/accounts-manager-for-claude.rb` there. After a release is packaged, `scripts/update-cask.sh <version>` fills in the version and checksum.
+The cask installs the app in `/Applications`, links `cs` into your `PATH`, and clears the quarantine flag. `cs install` leaves an app that is already in an Applications folder where it is. Run `cs install` again after `brew upgrade`, and `cs uninstall` before `brew uninstall`. The cask lives in [NurFajarSA/homebrew-tap](https://github.com/NurFajarSA/homebrew-tap).
 
 ### From source
 
@@ -343,7 +343,7 @@ The version lives in `package.json`. It feeds `cs --version`, the MCP server and
 2. Move the `CHANGELOG.md` entries under the new version.
 3. Push a tag `v<version>`.
 
-The `Release` workflow runs the tests, runs `scripts/package-release.sh` on a macOS 26 runner (the SDK the app links against decides its look), and publishes the zip and tarball with their checksums. `install.sh` picks up the new release as soon as it is published. Run the script locally to get the same files in `dist/release/`, and test the install script against them with `ACCOUNTS_MANAGER_BASE_URL=file://$PWD/dist/release sh install.sh`.
+The `Release` workflow runs the tests, runs `scripts/package-release.sh` on a macOS 26 runner (the SDK the app links against decides its look), and publishes the zip and tarball with their checksums. `install.sh` picks up the new release as soon as it is published. For Homebrew, run `scripts/update-cask.sh <version> <path to a homebrew-tap checkout>`: it takes the checksum from the published release, writes `packaging/homebrew/accounts-manager-for-claude.rb`, and copies it into the tap to commit and push. Run the script locally to get the same files in `dist/release/`, and test the install script against them with `ACCOUNTS_MANAGER_BASE_URL=file://$PWD/dist/release sh install.sh`.
 
 Signing is optional. Set `DEVELOPER_ID_APP` to a codesign identity to sign with the hardened runtime. To notarize and staple, also set `NOTARY_PROFILE` (a `notarytool` keychain profile), or set `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`. In CI, the secrets `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` enable signing, and the three `APPLE_*` secrets enable notarization. Without them, the release is ad-hoc signed.
 

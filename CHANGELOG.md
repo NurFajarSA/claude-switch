@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Homebrew: `brew install --cask nurfajarsa/tap/accounts-manager-for-claude`. `scripts/update-cask.sh` takes the checksum from the published release and copies the cask into a tap checkout.
+
+### Fixed
+
+- `cs install --app` leaves an app that is already in `/Applications` or `~/Applications` in place instead of copying it to `~/Applications`, and Launch at Login finds the app in either folder.
+
 ## [1.0.0] - 2026-11-01
 
 First release.
