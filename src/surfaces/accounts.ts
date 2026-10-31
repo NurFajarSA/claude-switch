@@ -7,12 +7,13 @@ export interface AccountEntry {
   id: AccountId;
   names: string[];
   email: string | null;
+  folders: string[];
 }
 
 export function accountDirectory(overview: Overview): AccountEntry[] {
   const entries = new Map<AccountId, AccountEntry>();
   const entry = (id: AccountId) => {
-    const existing = entries.get(id) ?? { id, names: [], email: null };
+    const existing = entries.get(id) ?? { id, names: [], email: null, folders: [] };
     entries.set(id, existing);
     return existing;
   };
@@ -26,6 +27,7 @@ export function accountDirectory(overview: Overview): AccountEntry[] {
     const e = entry(p.profile.accountId);
     const name = displayName(p.profile);
     if (!e.names.includes(`${name} (Desktop)`)) e.names.push(`${name} (Desktop)`);
+    e.folders.push(p.profile.name.toLowerCase());
   }
   return [...entries.values()];
 }
@@ -35,7 +37,8 @@ export function resolveAccount(directory: readonly AccountEntry[], query: string
   const match =
     directory.find((e) => e.id === query) ??
     directory.find((e) => e.email?.toLowerCase() === q) ??
-    directory.find((e) => e.names.some((n) => n.toLowerCase() === q || n.toLowerCase() === `${q} (desktop)`));
+    directory.find((e) => e.names.some((n) => n.toLowerCase() === q || n.toLowerCase() === `${q} (desktop)`)) ??
+    directory.find((e) => e.folders.includes(q));
   if (!match) throw new UserError(`Unknown account "${query}". Known: ${directory.map((e) => e.names[0] ?? e.id).join(", ")}.`);
   return match;
 }

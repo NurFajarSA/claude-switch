@@ -65,3 +65,7 @@ A Code session is a card at `claude-code-sessions/<accountUuid>/<orgUuid>/local_
 A running Desktop window does not rescan `claude-code-sessions/`; a card written while it runs appears after the window restarts (observed on Claude Desktop with Claude Code 2.1.309). `DesktopHub.decide` therefore tries closed profiles first and falls back to open ones only when every closed profile is at its limit. For an open target, `handoff` reports `needs_reopen` unless the caller passes `restart`, which sends SIGTERM to that profile's main process, waits for it to exit and launches it again.
 
 The hook and the MCP server know which Desktop session they run in from `CLAUDE_CODE_HOST_SESSION_ID` and `CLAUDE_CODE_ACCOUNT_UUID`, which Desktop sets for its Claude Code processes.
+
+## Project rules
+
+`~/.config/claude-switch/rules.json` maps folders to account ids. `ruleFor` picks the deepest rule whose folder contains the session folder (the hook's `cwd`, or the MCP server's working directory, which Claude Code sets to the project). `decideSwitch` takes the allowed set: an active account outside it must move even with usage left, candidates outside it are never chosen, and the best outside candidate is returned with `exhausted` so the hook can offer it as a one-off. Desktop profiles and CLI accounts share account ids, so one rule covers both.
