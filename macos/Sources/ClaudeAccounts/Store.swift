@@ -15,6 +15,7 @@ final class Store {
 
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var reloadTicket = 0
+    @ObservationIgnored private var userSwitching = false
 
     private static let onboardingCompletedKey = "onboardingCompleted"
     private static let daemonPlist = FileManager.default.homeDirectoryForCurrentUser
@@ -53,15 +54,36 @@ final class Store {
             let next = try await CS.decode(Overview.self, ["status", "--json"])
             let recent = try await CS.decode([SessionRow].self, ["sessions", "--limit", "8", "--json"])
             guard ticket == reloadTicket else { return }
+            let previous = overview
             overview = next
             sessions = recent
             loadError = nil
+            notify(previous: previous, current: next)
         } catch {
             guard ticket == reloadTicket else { return }
             loadError = error.localizedDescription
         }
         refreshSetup()
         if overview != nil, !setupIncomplete { finishOnboarding() }
+    }
+
+    private static let expiryNotifiedKey = "expiryNotifiedOn"
+
+    private func notify(previous: Overview?, current: Overview) {
+        var alerts: [UsageAlert] = []
+        if let previous {
+            if !userSwitching, let switched = AlertRules.switched(from: previous, to: current) { alerts.append(switched) }
+            alerts += AlertRules.crossedWarning(from: previous, to: current)
+        }
+        let today = Date().formatted(.iso8601.year().month().day())
+        var notifiedOn = UserDefaults.standard.dictionary(forKey: Self.expiryNotifiedKey) as? [String: String] ?? [:]
+        for (key, alert) in AlertRules.expiring(current) where notifiedOn[key] != today {
+            notifiedOn[key] = today
+            alerts.append(alert)
+        }
+        guard !alerts.isEmpty else { return }
+        UserDefaults.standard.set(notifiedOn, forKey: Self.expiryNotifiedKey)
+        Task { await Notifier.shared.post(alerts) }
     }
 
     func refreshLive() async {
@@ -87,6 +109,8 @@ final class Store {
     }
 
     func useForCLI(_ account: AccountRow) async {
+        userSwitching = true
+        defer { userSwitching = false }
         await perform(["switch", account.alias])
     }
 

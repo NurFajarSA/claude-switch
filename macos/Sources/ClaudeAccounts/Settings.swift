@@ -244,6 +244,7 @@ struct GeneralPane: View {
     let store: Store
     @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = LoginItem.isEnabled
+    @AppStorage(Notifier.enabledKey) private var notificationsEnabled = true
 
     var body: some View {
         Section {
@@ -256,6 +257,12 @@ struct GeneralPane: View {
             })) {
                 Text("Launch at Login")
                 Text("Show Claude Accounts in the menu bar when you log in.")
+            }
+        }
+        Section {
+            Toggle(isOn: $notificationsEnabled) {
+                Text("Notifications")
+                Text("Tell me when the CLI switches accounts, usage reaches the warning level, or a sign-in is about to expire.")
             }
         }
         Section("Setup") {
