@@ -162,6 +162,27 @@ const COMMANDS: Record<string, Command> = {
       out(result.label ? `${result.profile.name} is now shown as "${result.label}".` : `${result.profile.name} shows its folder name again.`);
     },
   },
+  "new-profile": {
+    usage: "cs new-profile <name>",
+    summary: "Create a Claude Desktop profile and open its window to sign in",
+    run: async ([name]) => {
+      if (!name) throw new UserError("Usage: cs new-profile <name>");
+      const { profile } = await hub.createProfile(name);
+      out(`Created ${profile.name}. Sign in with the account for this profile in the window that opened.`);
+    },
+  },
+  "update-desktop": {
+    usage: "cs update-desktop",
+    summary: "Install a downloaded Claude Desktop update and reopen every open profile",
+    run: async () => {
+      const result = await hub.installUpdate();
+      const reopened = result.reopened.length > 0 ? ` Reopened ${result.reopened.join(", ")}.` : "";
+      if (!result.installed) {
+        throw new UserError(`Claude ${result.to} did not install within 3 minutes. Check that every Claude window has quit.${reopened}`);
+      }
+      out(`Updated Claude Desktop from ${result.from ?? "?"} to ${result.to}.${reopened}`);
+    },
+  },
   rename: {
     usage: "cs rename <alias> <new-alias>",
     summary: "Rename a registered CLI account",
@@ -212,7 +233,7 @@ const COMMANDS: Record<string, Command> = {
     run: async () => {
       const controller = new AbortController();
       for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => controller.abort());
-      await runDaemon(engine, log, controller.signal);
+      await runDaemon({ engine, hub, log, signal: controller.signal });
     },
   },
   mcp: {

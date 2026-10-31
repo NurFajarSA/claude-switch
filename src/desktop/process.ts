@@ -9,6 +9,7 @@ export interface DesktopWindows {
   isRunning(profile: DesktopProfile): Promise<boolean>;
   open(profile: DesktopProfile): Promise<WindowAction>;
   restart(profile: DesktopProfile): Promise<WindowAction>;
+  quit(profile: DesktopProfile): Promise<void>;
 }
 
 export class MacDesktopWindows implements DesktopWindows {
@@ -27,19 +28,21 @@ export class MacDesktopWindows implements DesktopWindows {
   }
 
   async restart(profile: DesktopProfile): Promise<WindowAction> {
+    const wasRunning = await this.isRunning(profile);
+    await this.quit(profile);
+    await this.launch(profile);
+    return wasRunning ? "restarted" : "launched";
+  }
+
+  async quit(profile: DesktopProfile): Promise<void> {
     const pid = await this.pid(profile);
-    if (pid === undefined) {
-      await this.launch(profile);
-      return "launched";
-    }
+    if (pid === undefined) return;
     process.kill(pid, "SIGTERM");
     const deadline = Date.now() + QUIT_TIMEOUT_MS;
     while ((await this.pid(profile)) !== undefined) {
       if (Date.now() > deadline) throw new Error(`Claude (${profile.name}) did not quit within ${QUIT_TIMEOUT_MS / 1000}s`);
       await Bun.sleep(250);
     }
-    await this.launch(profile);
-    return "restarted";
   }
 
   private async pid(profile: DesktopProfile): Promise<number | undefined> {

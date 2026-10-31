@@ -9,6 +9,7 @@ final class Store {
     var sessions: [SessionRow] = []
     var loadError: String?
     var busy = false
+    var listHeight: CGFloat?
 
     @ObservationIgnored private var timer: Timer?
 
@@ -88,6 +89,28 @@ final class Store {
 
     func registerCurrent() async {
         await perform(["register"])
+    }
+
+    func createProfile() async {
+        guard let value = Dialog.prompt(
+            title: "Profil Claude Desktop baru",
+            message: "Satu profil untuk satu akun. Setelah dibuat, jendela Claude baru terbuka untuk login. Pakai huruf, angka, titik, atau tanda hubung.",
+            initial: ""
+        ) else { return }
+        let name = value.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "-")
+        guard !name.isEmpty else { return }
+        await perform(["new-profile", name])
+    }
+
+    func installDesktopUpdate(_ version: String) async {
+        let go = Dialog.confirm(
+            title: "Pasang Claude \(version)?",
+            message: "Semua jendela Claude Desktop akan ditutup supaya update bisa terpasang, lalu dibuka lagi. Pekerjaan yang sedang berjalan di jendela itu akan terhenti.",
+            confirm: "Pasang Update",
+            cancel: "Nanti Saja"
+        )
+        guard go else { return }
+        await perform(["update-desktop"], report: "Update Claude Desktop")
     }
 
     func addAccount() {

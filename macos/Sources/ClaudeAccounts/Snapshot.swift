@@ -7,7 +7,8 @@ enum Snapshot {
         guard let path = ProcessInfo.processInfo.environment["CLAUDE_ACCOUNTS_SNAPSHOT"] else { return }
         await store.reload()
         let appearance = ProcessInfo.processInfo.environment["CLAUDE_ACCOUNTS_SNAPSHOT_DARK"] == "1" ? ColorScheme.dark : .light
-        let view = Panel(store: store)
+        let expand = ProcessInfo.processInfo.environment["CLAUDE_ACCOUNTS_SNAPSHOT_OTHERS"] == "1"
+        let view = Panel(store: store, scrolls: false, expandOthers: expand)
             .frame(width: 320)
             .background(appearance == .dark ? Color(white: 0.16) : Color(white: 0.96))
             .environment(\.colorScheme, appearance)

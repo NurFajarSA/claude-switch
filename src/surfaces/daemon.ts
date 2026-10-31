@@ -1,11 +1,31 @@
 import type { Engine } from "../core/engine.ts";
+import type { DesktopHub } from "../desktop/hub.ts";
 import type { Logger } from "../infra/log.ts";
+
+const WATCH_SECONDS = 10;
 
 const MAX_BACKOFF_SECONDS = 900;
 
-export async function runDaemon(engine: Engine, log: Logger, signal: AbortSignal): Promise<void> {
-  let backoff = 0;
+export async function runDaemon({ engine, hub, log, signal }: { engine: Engine; hub: DesktopHub; log: Logger; signal: AbortSignal }): Promise<void> {
   log.info("daemon_started");
+  await Promise.all([pollLoop(engine, log, signal), watchLoop(hub, log, signal)]);
+  log.info("daemon_stopped");
+}
+
+async function watchLoop(hub: DesktopHub, log: Logger, signal: AbortSignal): Promise<void> {
+  while (!signal.aborted) {
+    try {
+      const reopened = await hub.watch();
+      if (reopened.length > 0) log.info("reopened_after_update", { profiles: reopened });
+    } catch (err) {
+      log.error("watch_failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+    await sleep(WATCH_SECONDS * 1000, signal);
+  }
+}
+
+async function pollLoop(engine: Engine, log: Logger, signal: AbortSignal): Promise<void> {
+  let backoff = 0;
   while (!signal.aborted) {
     const config = await engine.config.load();
     try {
@@ -21,7 +41,6 @@ export async function runDaemon(engine: Engine, log: Logger, signal: AbortSignal
     }
     await sleep((backoff || config.pollSeconds) * 1000, signal);
   }
-  log.info("daemon_stopped");
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {

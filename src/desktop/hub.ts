@@ -6,7 +6,9 @@ import { type Candidate, decideSwitch, type SwitchDecision, type UsageRecord } f
 import { type DesktopWindows, MacDesktopWindows, type WindowAction } from "./process.ts";
 import { MAX_LABEL_LENGTH, ProfileLabels } from "./labels.ts";
 import { type DesktopProfile, discoverProfiles, displayName, resolveProfile } from "./profiles.ts";
+import { mkdir, stat } from "node:fs/promises";
 import { type DesktopSession, findSession, type HandoffResult, handoffSession, listSessions } from "./sessions.ts";
+import { type DesktopUpdateState, readUpdateState, type UpdatePaths, updatePaths, WatchStore, watchTick } from "./updates.ts";
 
 export interface ProfileState {
   profile: DesktopProfile;
@@ -19,7 +21,18 @@ export interface ProfileState {
 export interface Overview {
   status: Status;
   profiles: ProfileState[];
+  update: DesktopUpdateState;
 }
+
+export interface UpdateResult {
+  from: string | null;
+  to: string;
+  installed: boolean;
+  reopened: string[];
+}
+
+const PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
+const UPDATE_TIMEOUT_MS = 180_000;
 
 export type TargetWindow = WindowAction | "left_closed" | "needs_reopen";
 
@@ -31,6 +44,7 @@ export type HandoffOutcome =
 export interface HubOptions {
   appSupportDir?: string;
   windows?: DesktopWindows;
+  updates?: UpdatePaths;
   now?: () => number;
 }
 
@@ -39,6 +53,8 @@ export class DesktopHub {
   private readonly windows: DesktopWindows;
   private readonly now: () => number;
   private readonly labels: ProfileLabels;
+  private readonly updates: UpdatePaths;
+  private readonly watchStore: WatchStore;
 
   constructor(
     private readonly engine: Engine,
@@ -48,6 +64,65 @@ export class DesktopHub {
     this.windows = options.windows ?? new MacDesktopWindows();
     this.now = options.now ?? Date.now;
     this.labels = new ProfileLabels(engine.paths.stateDir);
+    this.updates = options.updates ?? updatePaths(engine.paths.home);
+    this.watchStore = new WatchStore(engine.paths.stateDir);
+  }
+
+  async createProfile(name: string): Promise<{ profile: DesktopProfile; how: WindowAction }> {
+    if (!PROFILE_NAME.test(name)) throw new UserError("A profile name uses letters, digits, dots, dashes or underscores (max 40).");
+    const existing = await this.profiles();
+    if (existing.some((p) => p.name.toLowerCase() === name.toLowerCase() || p.label?.toLowerCase() === name.toLowerCase())) {
+      throw new UserError(`Profile "${name}" already exists.`);
+    }
+    const dir = join(this.appSupportDir, `Claude-${name}`);
+    if (await stat(dir).then(() => true, () => false)) throw new UserError(`The folder Claude-${name} already exists.`);
+    await mkdir(dir, { recursive: true });
+    const profile: DesktopProfile = { name: name as DesktopProfile["name"], label: null, dir, isDefault: false, accountId: null, sessionRoots: [], usage: null };
+    return { profile, how: await this.windows.open(profile) };
+  }
+
+  async installUpdate(): Promise<UpdateResult> {
+    const before = await readUpdateState(this.updates);
+    if (!before.staged) throw new UserError("Claude Desktop has no downloaded update waiting to install.");
+    const profiles = await this.profiles();
+    const running = (await Promise.all(profiles.map(async (p) => ((await this.windows.isRunning(p)) ? p : null)))).filter(
+      (p): p is DesktopProfile => p !== null,
+    );
+    for (const profile of running) await this.windows.quit(profile);
+
+    const deadline = this.now() + UPDATE_TIMEOUT_MS;
+    let installed = false;
+    while (this.now() < deadline) {
+      if ((await readUpdateState(this.updates)).installed === before.staged) {
+        installed = true;
+        break;
+      }
+      await Bun.sleep(2000);
+    }
+    const reopened: string[] = [];
+    for (const profile of running) {
+      await this.windows.open(profile);
+      reopened.push(displayName(profile));
+    }
+    return { from: before.installed, to: before.staged, installed, reopened };
+  }
+
+  async watch(): Promise<string[]> {
+    const profiles = await this.profiles();
+    const running = (await Promise.all(profiles.map(async (p) => ((await this.windows.isRunning(p)) ? p.name : null)))).filter(
+      (n): n is DesktopProfile["name"] => n !== null,
+    );
+    const { installed } = await readUpdateState(this.updates);
+    const tick = watchTick({ previous: await this.watchStore.load(), version: installed, running, now: this.now() });
+    await this.watchStore.save(tick.state);
+    const reopened: string[] = [];
+    for (const name of tick.reopen) {
+      const profile = profiles.find((p) => p.name === name);
+      if (!profile || (await this.windows.isRunning(profile))) continue;
+      await this.windows.open(profile);
+      reopened.push(displayName(profile));
+    }
+    return reopened;
   }
 
   async setLabel(profileQuery: string, label: string | null): Promise<{ profile: DesktopProfile; label: string | null }> {
@@ -70,11 +145,12 @@ export class DesktopHub {
   }
 
   async overview(): Promise<Overview> {
-    const [status, profiles] = await Promise.all([this.engine.status(), this.profiles()]);
+    const [status, profiles, update] = await Promise.all([this.engine.status(), this.profiles(), readUpdateState(this.updates)]);
     const running = await Promise.all(profiles.map((p) => this.windows.isRunning(p)));
     const byAccount = new Map(status.accounts.map((a) => [a.record.id, a]));
     return {
       status,
+      update,
       profiles: profiles.map((profile, i) => {
         const account = profile.accountId ? byAccount.get(profile.accountId) ?? null : null;
         const live = account?.usage?.reading ? account.usage : undefined;

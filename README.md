@@ -91,12 +91,18 @@ cs status [--refresh] [--json]        usage for every profile and account
 cs sessions [profile]                 recent Desktop sessions
 cs handoff <id> [--to name] [--restart]  move a Desktop session to another profile
 cs open <profile>                     open or focus a Desktop window
+cs new-profile <name>                 create a Desktop profile and open it to sign in
+cs update-desktop                     install a downloaded Claude Desktop update, then reopen every open profile
 cs switch <alias> | --auto            change the CLI login
 cs add [alias] / cs register [alias]  add accounts
 cs label <profile> "<name>" | --clear   display name for a Desktop profile (folder unchanged)
 cs rename <alias> <new> / cs remove <alias>
 cs config [key] [value]               threshold (95), warnAt (85), pollSeconds (120), autoSwitch (true)
 ```
+
+## Claude Desktop updates
+
+Claude Desktop installs an update only after every window has quit, and then reopens only the default profile. The background poller watches for that: when the installed version changes, it reopens every profile that was open in the 15 minutes before. When an update is downloaded and waiting, the menu bar shows it; installing from there (or `cs update-desktop`) quits every open profile, waits for the new version and reopens them.
 
 ## Limits
 

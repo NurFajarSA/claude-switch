@@ -25,6 +25,7 @@ describe("toOverviewView", () => {
     const overview: Overview = {
       status: { live: null, liveRegistered: false, accounts: [], config: { threshold: 95, warnAt: 85, pollSeconds: 120, autoSwitch: true } },
       profiles: [state("kantor", "acct-kantor"), state("kosong", null)],
+      update: { installed: "1.0", staged: null },
     };
 
     expect(toOverviewView(overview).profiles.map((p) => p.name)).toEqual(["kantor"]);

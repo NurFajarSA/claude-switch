@@ -159,6 +159,8 @@ export interface ProfileRow {
 
 export interface OverviewView extends StatusView {
   profiles: ProfileRow[];
+  desktopVersion: string | null;
+  desktopUpdate: string | null;
 }
 
 export function toOverviewView(overview: Overview, now = Date.now()): OverviewView {
@@ -166,6 +168,8 @@ export function toOverviewView(overview: Overview, now = Date.now()): OverviewVi
   const { threshold, warnAt } = base;
   return {
     ...base,
+    desktopVersion: overview.update.installed,
+    desktopUpdate: overview.update.staged,
     profiles: overview.profiles.filter((p) => p.profile.accountId !== null).map((p) => {
       const reading = p.usage?.reading ?? null;
       const percent = reading ? blockingWindow(reading)?.percent ?? 0 : null;

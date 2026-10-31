@@ -52,6 +52,8 @@ struct Overview: Decodable {
     let warnAt: Int
     let autoSwitch: Bool
     let unregisteredActive: String?
+    let desktopVersion: String?
+    let desktopUpdate: String?
 }
 
 struct SessionRow: Decodable, Identifiable {

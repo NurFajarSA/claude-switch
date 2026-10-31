@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DesktopHub } from "../src/desktop/hub.ts";
@@ -24,6 +24,10 @@ class FakeWindows implements DesktopWindows {
   async restart(profile: DesktopProfile): Promise<WindowAction> {
     this.actions.push(`restart ${profile.name}`);
     return "restarted";
+  }
+  async quit(profile: DesktopProfile) {
+    this.actions.push(`quit ${profile.name}`);
+    this.running.delete(profile.name);
   }
 }
 
@@ -277,5 +281,77 @@ describe("profile labels", () => {
     const { hub } = await labelled();
     await expect(hub.setLabel("3p", "x".repeat(41))).rejects.toThrow("at most 40");
     await expect(hub.setLabel("3p", "Default")).rejects.toThrow("already used by profile default");
+  });
+});
+
+describe("Desktop profiles and updates", () => {
+  const plist = (entries: Record<string, string>) =>
+    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>${Object.entries(entries)
+      .map(([k, v]) => `<key>${k}</key><string>${v}</string>`)
+      .join("")}</dict></plist>\n`;
+
+  const appWithUpdate = async (installed: string, staged: string | null) => {
+    const root = await mkdtemp(join(tmpdir(), "claude-switch-update-"));
+    const appBundle = join(root, "Claude.app");
+    const stagedBundle = join(root, "update.x", "Claude.app");
+    const shipItState = join(root, "ShipItState.plist");
+    await mkdir(join(appBundle, "Contents"), { recursive: true });
+    await writeFile(join(appBundle, "Contents", "Info.plist"), plist({ CFBundleShortVersionString: installed }));
+    if (staged) {
+      await mkdir(join(stagedBundle, "Contents"), { recursive: true });
+      await writeFile(join(stagedBundle, "Contents", "Info.plist"), plist({ CFBundleShortVersionString: staged }));
+      await writeFile(shipItState, plist({ updateBundleURL: `file://${stagedBundle}/` }));
+    }
+    return { appBundle, shipItState, install: () => writeFile(join(appBundle, "Contents", "Info.plist"), plist({ CFBundleShortVersionString: staged ?? installed })) };
+  };
+
+  test("creates a new profile folder and opens a window for it", async () => {
+    const t = await setup();
+    const root = await fixture([{ folder: "Claude-kantor", account: "acct-kantor", sessions: [card("local_src")] }]);
+    const windows = new FakeWindows();
+    const hub = new DesktopHub(t.engine, { appSupportDir: root, windows, now: () => NOW });
+
+    const { profile } = await hub.createProfile("klien-baru");
+
+    expect(profile.dir).toBe(join(root, "Claude-klien-baru"));
+    expect((await stat(profile.dir)).isDirectory()).toBe(true);
+    expect(windows.actions).toEqual(["open klien-baru"]);
+    await expect(hub.createProfile("kantor")).rejects.toThrow("already exists");
+    await expect(hub.createProfile("bad name")).rejects.toThrow("letters, digits");
+  });
+
+  test("reports a downloaded update only when its version differs from the installed one", async () => {
+    const t = await setup();
+    const waiting = await appWithUpdate("4.4", "4.5");
+    const none = await appWithUpdate("4.4", null);
+    const root = await fixture([]);
+
+    const withUpdate = await new DesktopHub(t.engine, { appSupportDir: root, windows: new FakeWindows(), updates: waiting }).overview();
+    const without = await new DesktopHub(t.engine, { appSupportDir: root, windows: new FakeWindows(), updates: none }).overview();
+
+    expect(withUpdate.update).toEqual({ installed: "4.4", staged: "4.5" });
+    expect(without.update).toEqual({ installed: "4.4", staged: null });
+  });
+
+  test("installing an update quits every open profile, waits for the new version and reopens them", async () => {
+    const t = await setup();
+    const app = await appWithUpdate("4.4", "4.5");
+    const root = await fixture([
+      { folder: "Claude-kantor", account: "acct-kantor", sessions: [card("local_src")] },
+      { folder: "Claude-klien", account: "acct-klien", sessions: [card("local_k", { cliSessionId: "k" })] },
+      { folder: "Claude-tutup", account: "acct-tutup", sessions: [card("local_t", { cliSessionId: "t" })] },
+    ]);
+    const windows = new FakeWindows(new Set(["kantor", "klien"]));
+    const realQuit = windows.quit.bind(windows);
+    windows.quit = async (profile) => {
+      await realQuit(profile);
+      if (windows.actions.filter((a) => a.startsWith("quit")).length === 2) await app.install();
+    };
+    const hub = new DesktopHub(t.engine, { appSupportDir: root, windows, updates: app });
+
+    const result = await hub.installUpdate();
+
+    expect(result).toEqual({ from: "4.4", to: "4.5", installed: true, reopened: ["kantor", "klien"] });
+    expect(windows.actions).toEqual(["quit kantor", "quit klien", "open kantor", "open klien"]);
   });
 });

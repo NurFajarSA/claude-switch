@@ -25,29 +25,82 @@ struct ClaudeAccountsApp: App {
 
 struct Panel: View {
     let store: Store
+    var scrolls = true
+    var expandOthers = false
     @State private var showOthers = false
 
+    private static let maxListHeight: CGFloat = 470
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 8) {
             header
-            if let message = store.loadError {
-                Row(icon: "exclamationmark.triangle.fill", highlighted: false, title: "Tidak bisa memuat data", subtitle: message)
+            if !scrolls {
+                VStack(alignment: .leading, spacing: 8) { content }
+                    .onAppear { showOthers = expandOthers }
+            } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) { content }
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(key: ListHeightKey.self, value: geo.size.height)
+                            }
+                        )
+                }
+                .scrollIndicators(.automatic)
+                .frame(height: min(store.listHeight ?? estimatedHeight, Self.maxListHeight))
+                .onPreferenceChange(ListHeightKey.self) { height in
+                    guard height > 0, !showOthers else { return }
+                    store.listHeight = height
+                }
+                .onChange(of: showOthers) { _, expanded in
+                    guard expanded else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("others", anchor: .top) }
+                    }
+                }
             }
-            if let overview = store.overview {
-                desktop(overview)
-                Separator()
-                cli(overview)
-            } else if store.loadError == nil {
-                ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(12)
             }
-            Separator()
-            ActionRow(title: "Perbarui usage") { Task { await store.refreshLive() } }
-            ActionRow(title: "Tambah akun…") { store.addAccount() }
-            ActionRow(title: "Buka log") { store.openLog() }
-            Separator()
-            ActionRow(title: "Keluar Claude Accounts") { NSApplication.shared.terminate(nil) }
+            Module {
+                ActionRow(title: "Perbarui usage") { Task { await store.refreshLive() } }
+                ActionRow(title: "Tambah profil Desktop…") { Task { await store.createProfile() } }
+                ActionRow(title: "Tambah akun CLI…") { store.addAccount() }
+                ActionRow(title: "Buka log") { store.openLog() }
+                ActionRow(title: "Keluar Claude Accounts") { NSApplication.shared.terminate(nil) }
+            }
         }
         .padding(10)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let message = store.loadError {
+            Module { Row(icon: "exclamationmark.triangle.fill", highlighted: false, title: "Tidak bisa memuat data", subtitle: message).padding(6) }
+        }
+        if let overview = store.overview {
+            if let version = overview.desktopUpdate {
+                Module {
+                    Button {
+                        Task { await store.installDesktopUpdate(version) }
+                    } label: {
+                        Row(icon: "arrow.down.circle", highlighted: true, title: "Update Claude \(version) siap", subtitle: "Klik untuk pasang dan buka lagi semua profil")
+                    }
+                    .buttonStyle(RowButtonStyle())
+                }
+            }
+            desktop(overview)
+            cli(overview)
+        } else if store.loadError == nil {
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(12)
+        }
+    }
+
+    private var estimatedHeight: CGFloat {
+        guard let overview = store.overview else { return 60 }
+        let desktopRows = overview.profiles.filter(\.registered).count + (overview.profiles.contains { !$0.registered } ? 1 : 0)
+        let cliRows = max(overview.accounts.count, 1)
+        let modules: CGFloat = 2 + (overview.desktopUpdate == nil ? 0 : 1)
+        return modules * 29 + CGFloat(desktopRows + cliRows + (overview.desktopUpdate == nil ? 0 : 1)) * 36 + (modules - 1) * 8
     }
 
     private var header: some View {
@@ -68,49 +121,80 @@ struct Panel: View {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.bottom, 4)
+        .padding(.top, 2)
     }
 
     @ViewBuilder
     private func desktop(_ overview: Overview) -> some View {
         let registered = overview.profiles.filter(\.registered)
         let others = overview.profiles.filter { !$0.registered }
-        SectionLabel(text: "Claude Desktop")
-        ForEach(registered) { DesktopProfileRow(store: store, profile: $0) }
-        if !others.isEmpty {
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) { showOthers.toggle() }
-            } label: {
-                Row(icon: "ellipsis", highlighted: false, title: "Lainnya", subtitle: "\(others.count) profil belum didaftarkan") {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(showOthers ? 90 : 0))
+        Module(title: "Claude Desktop") {
+            ForEach(registered) { DesktopProfileRow(store: store, profile: $0) }
+            if !others.isEmpty {
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showOthers.toggle() }
+                } label: {
+                    Row(icon: "ellipsis", highlighted: false, title: "Lainnya", subtitle: "\(others.count) profil belum didaftarkan") {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(showOthers ? 90 : 0))
+                    }
                 }
-            }
-            .buttonStyle(RowButtonStyle())
-            if showOthers {
-                ForEach(others) { DesktopProfileRow(store: store, profile: $0) }
+                .buttonStyle(RowButtonStyle())
+                .id("others")
+                if showOthers {
+                    ForEach(others) { DesktopProfileRow(store: store, profile: $0) }
+                }
             }
         }
     }
 
     @ViewBuilder
     private func cli(_ overview: Overview) -> some View {
-        SectionLabel(text: "Claude Code CLI dan VS Code")
-        if overview.accounts.isEmpty {
-            if let current = overview.unregisteredActive {
-                Button {
-                    Task { await store.registerCurrent() }
-                } label: {
-                    Row(icon: "plus", highlighted: false, title: "Daftarkan akun ini", subtitle: current)
+        Module(title: "Claude Code CLI dan VS Code") {
+            if overview.accounts.isEmpty {
+                if let current = overview.unregisteredActive {
+                    Button {
+                        Task { await store.registerCurrent() }
+                    } label: {
+                        Row(icon: "plus", highlighted: false, title: "Daftarkan akun ini", subtitle: current)
+                    }
+                    .buttonStyle(RowButtonStyle())
+                } else {
+                    Text("Belum ada akun terdaftar").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
                 }
-                .buttonStyle(RowButtonStyle())
-            } else {
-                Text("Belum ada akun terdaftar").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
             }
+            ForEach(overview.accounts) { CLIAccountRow(store: store, account: $0) }
         }
-        ForEach(overview.accounts) { CLIAccountRow(store: store, account: $0) }
+    }
+}
+
+struct ListHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+struct Module<Content: View>: View {
+    var title: String?
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+                    .padding(.bottom, 2)
+            }
+            content()
+        }
+        .padding(4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
     }
 }
 
@@ -241,7 +325,7 @@ struct HoverHighlight<Content: View>: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.primary.opacity(pressed ? 0.14 : hovering ? 0.08 : 0))
             )
             .onHover { hovering = $0 }
@@ -289,24 +373,7 @@ struct UsageMeter: View {
     }
 }
 
-struct SectionLabel: View {
-    let text: String
 
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-    }
-}
-
-struct Separator: View {
-    var body: some View {
-        Divider().padding(.horizontal, 6).padding(.vertical, 5)
-    }
-}
 
 extension Severity {
     var tint: Color {
