@@ -34,6 +34,8 @@ export interface Profile {
   organizationName: string | null;
   organizationType: string | null;
   rateLimitTier: string | null;
+  hasClaudeMax: boolean;
+  hasClaudePro: boolean;
 }
 
 const TIER_LABELS: Record<string, string> = {
@@ -43,7 +45,8 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 export function planLabel(profile: Profile): string {
-  const tier = profile.rateLimitTier ? TIER_LABELS[profile.rateLimitTier] ?? profile.rateLimitTier : "unknown";
+  const fromFlags = profile.hasClaudeMax ? "Max" : profile.hasClaudePro ? "Pro" : "Free";
+  const tier = (profile.rateLimitTier && TIER_LABELS[profile.rateLimitTier]) ?? fromFlags;
   return profile.organizationType === "claude_team" || profile.organizationType === "claude_enterprise"
     ? `${profile.organizationType === "claude_team" ? "Team" : "Enterprise"} · ${tier}`
     : tier;

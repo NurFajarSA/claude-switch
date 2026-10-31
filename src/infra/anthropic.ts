@@ -29,7 +29,12 @@ export interface HttpApiOptions {
 }
 
 const ProfileResponse = z.object({
-  account: z.object({ uuid: z.string(), email: z.string() }),
+  account: z.object({
+    uuid: z.string(),
+    email: z.string(),
+    has_claude_max: z.boolean().nullish(),
+    has_claude_pro: z.boolean().nullish(),
+  }),
   organization: z
     .object({
       uuid: z.string(),
@@ -88,6 +93,8 @@ export class HttpAnthropicApi implements AnthropicApi {
       organizationName: body.organization?.name ?? null,
       organizationType: body.organization?.organization_type ?? null,
       rateLimitTier: body.organization?.rate_limit_tier ?? null,
+      hasClaudeMax: body.account.has_claude_max ?? false,
+      hasClaudePro: body.account.has_claude_pro ?? false,
     };
   }
 

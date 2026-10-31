@@ -50,6 +50,8 @@ export class FakeApi implements AnthropicApi {
       organizationName: null,
       organizationType: "claude_max",
       rateLimitTier: "default_claude_max_5x",
+      hasClaudeMax: true,
+      hasClaudePro: false,
     };
   }
 
