@@ -1,16 +1,25 @@
 {
   "name": "claude-switch",
-  "module": "index.ts",
-  "type": "module",
+  "version": "1.0.0",
+  "description": "Use several Claude accounts on one Mac: live usage for every account, move Claude Desktop sessions between accounts, and switch the Claude Code CLI login automatically.",
+  "license": "MIT",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "^1.4.4"
-  },
-  "peerDependencies": {
-    "typescript": "^7.0.2"
+  "type": "module",
+  "repository": "github:NurFajarSA/claude-switch",
+  "scripts": {
+    "build": "bun build --compile --minify src/cli.ts --outfile dist/cs",
+    "build:app": "./macos/build-app.sh",
+    "install:local": "bun run build && bun run build:app && ./dist/cs install --app \"dist/Claude Accounts.app\"",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p .",
+    "check": "bun run typecheck && bun test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
   }
 }
