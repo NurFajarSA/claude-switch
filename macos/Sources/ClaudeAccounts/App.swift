@@ -49,6 +49,7 @@ struct Panel: View {
     var scrolls = true
     var expandOthers = false
     @State private var showOthers = false
+    @State private var showAccounts = false
 
     private static let maxListHeight: CGFloat = 470
     static let edge: CGFloat = 8
@@ -60,7 +61,7 @@ struct Panel: View {
             header
             if !scrolls {
                 VStack(alignment: .leading, spacing: 8) { content }
-                    .onAppear { showOthers = expandOthers }
+                    .onAppear { showOthers = expandOthers; showAccounts = expandOthers }
             } else {
             ScrollViewReader { proxy in
                 ScrollView {
@@ -74,13 +75,19 @@ struct Panel: View {
                 .scrollIndicators(.automatic)
                 .frame(height: min(store.listHeight ?? estimatedHeight, Self.maxListHeight))
                 .onPreferenceChange(ListHeightKey.self) { height in
-                    guard height > 0, !showOthers else { return }
+                    guard height > 0, !showOthers, !showAccounts else { return }
                     store.listHeight = height
                 }
                 .onChange(of: showOthers) { _, expanded in
                     guard expanded else { return }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("others", anchor: .top) }
+                    }
+                }
+                .onChange(of: showAccounts) { _, expanded in
+                    guard expanded else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("accounts", anchor: .top) }
                     }
                 }
             }
@@ -129,7 +136,7 @@ struct Panel: View {
     private var estimatedHeight: CGFloat {
         guard let overview = store.overview else { return 60 }
         let desktopRows = overview.profiles.filter(\.registered).count + (overview.profiles.contains { !$0.registered } ? 1 : 0)
-        let cliRows = max(overview.accounts.count, 1)
+        let cliRows = max(overview.accounts.filter(\.active).count + (overview.accounts.contains { !$0.active } ? 1 : 0), 1)
         let modules: CGFloat = 2 + (overview.desktopUpdate == nil ? 0 : 1)
         return modules * 29 + CGFloat(desktopRows + cliRows + (overview.desktopUpdate == nil ? 0 : 1)) * 36 + (modules - 1) * 8
     }
@@ -187,6 +194,8 @@ struct Panel: View {
 
     @ViewBuilder
     private func cli(_ overview: Overview) -> some View {
+        let active = overview.accounts.filter(\.active)
+        let others = overview.accounts.filter { !$0.active }.sorted { ($0.percent ?? 101) < ($1.percent ?? 101) }
         Module(title: "Claude Code CLI and VS Code") {
             if overview.accounts.isEmpty {
                 if let current = overview.unregisteredActive {
@@ -201,8 +210,39 @@ struct Panel: View {
                     Text("No accounts yet").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
                 }
             }
-            ForEach(overview.accounts) { CLIAccountRow(store: store, account: $0) }
+            ForEach(active) { CLIAccountRow(store: store, account: $0) }
+            if !others.isEmpty {
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showAccounts.toggle() }
+                } label: {
+                    Row(icon: "arrow.left.arrow.right", highlighted: false, title: "Switch Account", subtitle: switchSubtitle(others), warning: others.contains(where: needsAttention)) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(showAccounts ? 90 : 0))
+                            .accessibilityHidden(true)
+                    }
+                }
+                .buttonStyle(RowButtonStyle())
+                .accessibilityValue(showAccounts ? "Expanded" : "Collapsed")
+                .accessibilityHint("Shows or hides the other accounts you can switch the CLI to.")
+                .id("accounts")
+                if showAccounts {
+                    ForEach(others) { CLIAccountRow(store: store, account: $0) }
+                }
+            }
         }
+    }
+
+    private func needsAttention(_ account: AccountRow) -> Bool {
+        !account.healthy || account.loginExpiring
+    }
+
+    private func switchSubtitle(_ others: [AccountRow]) -> String {
+        let attention = others.filter(needsAttention).count
+        if attention > 0 { return "\(others.count) more · \(attention) \(attention == 1 ? "needs" : "need") sign-in" }
+        guard let best = others.first(where: \.healthy), let percent = best.percent else { return "\(others.count) more" }
+        return "\(others.count) more · \(best.alias) has the most left (\(percent)%)"
     }
 }
 
