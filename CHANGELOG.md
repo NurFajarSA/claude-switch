@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The menu bar app is now **Accounts Manager for Claude** (`Accounts Manager for Claude.app`, release zip `AccountsManager-<version>-macos-arm64.zip`, Homebrew cask `accounts-manager-for-claude`). `cs install` removes an old `Claude Accounts.app`. The bundle identifier is unchanged, so preferences and notification permission carry over.
+- The menu bar panel shows only the CLI account in use. The other accounts sit behind **Switch Account**, sorted by usage left, with a hint naming the best one or how many need a new sign-in.
+- Developer environment variables are renamed from `CLAUDE_ACCOUNTS_*` to `ACCOUNTS_MANAGER_*`.
+
+### Added
+
+- `scripts/screenshots.sh` regenerates the README screenshots from anonymised fixtures in `scripts/demo`.
+
 ## [1.0.0] - 2026-10-31
 
 First release.

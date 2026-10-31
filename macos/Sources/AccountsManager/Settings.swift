@@ -22,13 +22,13 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
 
     var summary: String {
         switch self {
-        case .general: "Start at login, and find the files Claude Accounts keeps on this Mac."
+        case .general: "Start at login, and find the files Accounts Manager keeps on this Mac."
         case .rules: "Choose which accounts each project folder may use. Auto-switch and session moves stay inside these accounts."
         case .autoSwitch: "Move to another account before the one in use hits its limit."
         case .accounts: "Accounts the Claude Code CLI and VS Code can sign in with. One is in use at a time."
         case .profiles: "Each Claude Desktop profile is its own window, signed in to one account."
         case .connectors: "MCP servers on this Mac work in every account. Bring claude.ai connectors here so switching accounts keeps your tools."
-        case .usage: "How often Claude Accounts checks each account’s 5-hour and weekly limits."
+        case .usage: "How often Accounts Manager checks each account’s 5-hour and weekly limits."
         case .updates: "Keep every Claude Desktop profile open across app updates."
         case .about: "Usage for every Claude account, session handoff between Desktop profiles, and automatic CLI switching."
         }
@@ -99,7 +99,7 @@ struct SettingsView: View {
                     ForEach(filtered(SettingsPane.main)) { SidebarRow(pane: $0).tag($0) }
                 }
                 if !filtered([.about]).isEmpty {
-                    Section("Claude Accounts") {
+                    Section("Accounts Manager") {
                         SidebarRow(pane: .about).tag(SettingsPane.about)
                     }
                 }
@@ -269,7 +269,7 @@ struct GeneralPane: View {
                 }
             })) {
                 Text("Launch at Login")
-                Text("Show Claude Accounts in the menu bar when you log in.")
+                Text("Show Accounts Manager in the menu bar when you log in.")
             }
         }
         Section {
@@ -657,7 +657,7 @@ struct UpdatesPane: View {
         Section {
             LabeledContent("After an update", value: "Reopen every profile that was open")
         } footer: {
-            Text("Claude Desktop installs an update only after every window quits, then reopens just the default profile. Claude Accounts reopens the rest.")
+            Text("Claude Desktop installs an update only after every window quits, then reopens just the default profile. Accounts Manager reopens the rest.")
         }
     }
 }
@@ -668,7 +668,7 @@ struct AboutPane: View {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
                 .frame(width: 96, height: 96)
-            Text("Claude Accounts").font(.title2.weight(.semibold))
+            Text("Accounts Manager for Claude").font(.title2.weight(.semibold))
             Text("Version \(AppInfo.version)").foregroundStyle(.secondary)
             Text("Usage for every Claude account, session handoff between Claude Desktop profiles, and automatic CLI switching. Not affiliated with Anthropic.")
                 .multilineTextAlignment(.center)

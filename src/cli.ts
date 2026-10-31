@@ -443,7 +443,7 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   install: {
-    usage: "cs install [--app path/to/Claude Accounts.app]",
+    usage: "cs install [--app path/to/Accounts Manager for Claude.app]",
     summary: "Install the binary, background poller, MCP server, hooks and menu bar app",
     run: async (args) => {
       const { values } = parseArgs({ args, options: { app: { type: "string" } } });

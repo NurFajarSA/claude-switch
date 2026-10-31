@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeAccounts",
+    name: "AccountsManager",
     platforms: [.macOS(.v15)],
     targets: [
-        .executableTarget(name: "ClaudeAccounts", path: "Sources/ClaudeAccounts")
+        .executableTarget(name: "AccountsManager", path: "Sources/AccountsManager")
     ],
     swiftLanguageModes: [.v5]
 )

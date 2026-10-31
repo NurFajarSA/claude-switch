@@ -13,8 +13,8 @@ version=$(bun -e 'console.log(JSON.parse(await Bun.file("package.json").text()).
 arch=arm64
 dist="$root/dist"
 rel="$dist/release"
-app="$dist/Claude Accounts.app"
-zip="$rel/ClaudeAccounts-$version-macos-$arch.zip"
+app="$dist/Accounts Manager for Claude.app"
+zip="$rel/AccountsManager-$version-macos-$arch.zip"
 tgz="$rel/cs-$version-macos-$arch.tar.gz"
 
 notary_args=()

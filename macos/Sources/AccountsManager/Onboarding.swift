@@ -47,7 +47,7 @@ struct InstallLine: Identifiable {
 enum SetupInstaller {
     static func run() async -> [InstallLine] {
         guard let bundled = CS.bundledBinary else {
-            return [InstallLine("✗ Install: this copy of Claude Accounts doesn’t include the cs command.")]
+            return [InstallLine("✗ Install: this copy of Accounts Manager doesn’t include the cs command.")]
         }
         let arguments = ["install", "--app", Bundle.main.bundlePath]
         do {
@@ -125,7 +125,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var welcome: some View {
         hero(
-            title: "Welcome to Claude Accounts",
+            title: "Welcome to Accounts Manager for Claude",
             summary: "See usage for every Claude account in the menu bar, and switch before one runs out."
         )
         Section("What will be installed") {
@@ -133,7 +133,7 @@ struct OnboardingView: View {
             feature("gauge.with.dots.needle.67percent", .orange, "Background usage checker", "Checks each account’s limits every few minutes.")
             feature("point.3.connected.trianglepath.dotted", .blue, "MCP server for Claude", "Lets Claude see usage and move a conversation to another account.")
             feature("arrow.triangle.2.circlepath", .green, "Claude Code hooks", "Switch the CLI to another account automatically when one runs low.")
-            feature("power", .gray, "Open at login", "Keep Claude Accounts in the menu bar.")
+            feature("power", .gray, "Open at login", "Keep Accounts Manager in the menu bar.")
         }
         if installing {
             Section { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Installing…") } }
@@ -200,7 +200,7 @@ struct OnboardingView: View {
     private var done: some View {
         hero(
             title: "You’re all set",
-            summary: hasAccounts ? "Claude Accounts is watching your usage." : "Add an account any time from the menu bar.",
+            summary: hasAccounts ? "Accounts Manager is watching your usage." : "Add an account any time from the menu bar.",
             symbol: "checkmark"
         )
         Section("Next steps") {

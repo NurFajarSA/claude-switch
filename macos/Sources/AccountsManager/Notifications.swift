@@ -62,7 +62,7 @@ enum AlertRules {
             let alert = UsageAlert(
                 id: "expiry:\(item.key)",
                 title: "Sign-in expires \(when)",
-                body: "\(item.name) needs a new sign-in. Open Claude Accounts to renew it."
+                body: "\(item.name) needs a new sign-in. Open Accounts Manager to renew it."
             )
             return (item.key, alert)
         }

@@ -3,7 +3,7 @@ set -euo pipefail
 
 here=${0:A:h}
 out=${1:-$here/../dist}
-app="$out/Claude Accounts.app"
+app="$out/Accounts Manager for Claude.app"
 
 version=$(bun -e 'console.log(JSON.parse(await Bun.file(process.argv[1]).text()).version)' "$here/../package.json")
 [[ -n "$version" ]] || { echo "could not read version from package.json" >&2; exit 1; }
@@ -11,11 +11,11 @@ version=$(bun -e 'console.log(JSON.parse(await Bun.file(process.argv[1]).text())
 sdk=$(xcrun --sdk macosx --show-sdk-version)
 link_sdk=(-Xlinker -platform_version -Xlinker macos -Xlinker 15.0 -Xlinker "$sdk")
 swift build --package-path "$here" -c release "${link_sdk[@]}"
-bin="$(swift build --package-path "$here" -c release "${link_sdk[@]}" --show-bin-path)/ClaudeAccounts"
+bin="$(swift build --package-path "$here" -c release "${link_sdk[@]}" --show-bin-path)/AccountsManager"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
-cp "$bin" "$app/Contents/MacOS/ClaudeAccounts"
+cp "$bin" "$app/Contents/MacOS/AccountsManager"
 mkdir -p "$app/Contents/Resources"
 cp "$here/icon/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 if [[ -x "$out/cs" ]]; then
@@ -27,10 +27,10 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Claude Accounts</string>
-  <key>CFBundleDisplayName</key><string>Claude Accounts</string>
+  <key>CFBundleName</key><string>Accounts Manager for Claude</string>
+  <key>CFBundleDisplayName</key><string>Accounts Manager for Claude</string>
   <key>CFBundleIdentifier</key><string>app.claude-switch.menubar</string>
-  <key>CFBundleExecutable</key><string>ClaudeAccounts</string>
+  <key>CFBundleExecutable</key><string>AccountsManager</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$version</string>

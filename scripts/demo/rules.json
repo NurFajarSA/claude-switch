@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/Users/alex/Code/acme-mobile",
+    "accounts": [
+      {
+        "id": "7c91df4f-76c6-5e80-bd93-403a1699b570",
+        "names": [
+          "client-acme",
+          "Acme"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/Users/alex/Code/work",
+    "accounts": [
+      {
+        "id": "7b0f0923-779f-5684-943d-f8cc40f80bd1",
+        "names": [
+          "work",
+          "Work"
+        ]
+      },
+      {
+        "id": "546fd939-f5ed-5986-9ab5-05ac85c6d91e",
+        "names": [
+          "personal",
+          "Personal"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/Users/alex/Code/research",
+    "accounts": [
+      {
+        "id": "fc46221c-2684-5dfb-b5a3-275d10e9ee15",
+        "names": [
+          "research",
+          "Research"
+        ]
+      },
+      {
+        "id": "546fd939-f5ed-5986-9ab5-05ac85c6d91e",
+        "names": [
+          "personal",
+          "Personal"
+        ]
+      }
+    ]
+  }
+]

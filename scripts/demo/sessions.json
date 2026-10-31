@@ -1,0 +1,30 @@
+[
+  {
+    "id": "local_124d76e6",
+    "profile": "work",
+    "profileLabel": "Work",
+    "title": "Refactor the checkout flow",
+    "lastActivityAt": "2026-11-01T08:55:00Z"
+  },
+  {
+    "id": "local_39a651e7",
+    "profile": "acme",
+    "profileLabel": "Acme",
+    "title": "Fix flaky payment webhook tests",
+    "lastActivityAt": "2026-11-01T08:31:00Z"
+  },
+  {
+    "id": "local_bb604be9",
+    "profile": "personal",
+    "profileLabel": "Personal",
+    "title": "Draft Q4 migration plan",
+    "lastActivityAt": "2026-10-31T21:12:00Z"
+  },
+  {
+    "id": "local_00041c92",
+    "profile": "research",
+    "profileLabel": "Research",
+    "title": "Benchmark tokenizer variants",
+    "lastActivityAt": "2026-10-31T17:40:00Z"
+  }
+]

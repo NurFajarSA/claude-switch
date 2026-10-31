@@ -6,6 +6,8 @@ import type { Paths } from "../infra/paths.ts";
 
 export const DAEMON_LABEL = "app.claude-switch.daemon";
 const APP_LABEL = "app.claude-switch.menubar";
+export const APP_NAME = "Accounts Manager for Claude.app";
+const LEGACY_APP_NAMES = ["Claude Accounts.app"];
 export const HOOK_EVENTS = ["UserPromptSubmit", "StopFailure"] as const;
 export const MCP_NAME = "claude-switch";
 
@@ -69,8 +71,7 @@ export async function install({ paths, sourceBinary, app }: { paths: Paths; sour
     await step("menu bar app", async () => {
       await mkdir(l.appDir, { recursive: true });
       const target = join(l.appDir, basename(app));
-      await sh(["/usr/bin/pkill", "-f", `${target}/Contents/MacOS/`], { allowFailure: true });
-      await rm(target, { recursive: true, force: true });
+      for (const name of new Set([basename(app), ...LEGACY_APP_NAMES])) await removeApp(join(l.appDir, name));
       await cp(app, target, { recursive: true });
       const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
       await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", target], { keepAlive: false, log: paths.logFile });
@@ -104,8 +105,7 @@ export async function uninstall({ paths }: { paths: Paths }): Promise<Step[]> {
     });
   }
   await attempt("menu bar app", async () => {
-    await sh(["/usr/bin/pkill", "-f", "Claude Accounts.app/Contents/MacOS/"], { allowFailure: true });
-    await rm(join(l.appDir, "Claude Accounts.app"), { recursive: true, force: true });
+    for (const name of [APP_NAME, ...LEGACY_APP_NAMES]) await removeApp(join(l.appDir, name));
   });
   await attempt("binary", () => rm(l.bin, { force: true }));
   return steps;
@@ -115,7 +115,7 @@ export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: 
   const l = layout(paths);
   const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
   if (enabled) {
-    const app = join(l.appDir, "Claude Accounts.app");
+    const app = join(l.appDir, APP_NAME);
     if (!(await exists(app))) throw new Error(`${app} is not installed`);
     await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", app], { keepAlive: false, log: paths.logFile });
   } else {
@@ -123,6 +123,11 @@ export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: 
     await rm(plist, { force: true });
   }
   return loginItemEnabled(paths);
+}
+
+async function removeApp(app: string): Promise<void> {
+  await sh(["/usr/bin/pkill", "-f", `${app}/Contents/MacOS/`], { allowFailure: true });
+  await rm(app, { recursive: true, force: true });
 }
 
 export async function loginItemEnabled(paths: Paths): Promise<boolean> {

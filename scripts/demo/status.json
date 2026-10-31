@@ -1,0 +1,346 @@
+{
+  "active": {
+    "id": "7b0f0923-779f-5684-943d-f8cc40f80bd1",
+    "alias": "work",
+    "email": "alex@work.example",
+    "plan": "Team \u00b7 Max 5x",
+    "active": true,
+    "healthy": true,
+    "problem": null,
+    "percent": 88,
+    "severity": "warn",
+    "windows": [
+      {
+        "label": "5-hour",
+        "percent": 88,
+        "resetsAt": "2026-11-01T10:20:00Z",
+        "resetsIn": "1h 12m"
+      },
+      {
+        "label": "weekly",
+        "percent": 46,
+        "resetsAt": "2026-11-04T08:00:00Z",
+        "resetsIn": "3d 0h"
+      }
+    ],
+    "checkedAgo": "1m ago",
+    "stale": false,
+    "loginDaysLeft": 24,
+    "loginExpiring": false
+  },
+  "unregisteredActive": null,
+  "accounts": [
+    {
+      "id": "7b0f0923-779f-5684-943d-f8cc40f80bd1",
+      "alias": "work",
+      "email": "alex@work.example",
+      "plan": "Team \u00b7 Max 5x",
+      "active": true,
+      "healthy": true,
+      "problem": null,
+      "percent": 88,
+      "severity": "warn",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 88,
+          "resetsAt": "2026-11-01T10:20:00Z",
+          "resetsIn": "1h 12m"
+        },
+        {
+          "label": "weekly",
+          "percent": 46,
+          "resetsAt": "2026-11-04T08:00:00Z",
+          "resetsIn": "3d 0h"
+        }
+      ],
+      "checkedAgo": "1m ago",
+      "stale": false,
+      "loginDaysLeft": 24,
+      "loginExpiring": false
+    },
+    {
+      "id": "546fd939-f5ed-5986-9ab5-05ac85c6d91e",
+      "alias": "personal",
+      "email": "alex@example.com",
+      "plan": "Max 5x",
+      "active": false,
+      "healthy": true,
+      "problem": null,
+      "percent": 14,
+      "severity": "ok",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 14,
+          "resetsAt": "2026-11-01T11:05:00Z",
+          "resetsIn": "1h 57m"
+        },
+        {
+          "label": "weekly",
+          "percent": 31,
+          "resetsAt": "2026-11-05T08:00:00Z",
+          "resetsIn": "4d 0h"
+        }
+      ],
+      "checkedAgo": "1m ago",
+      "stale": false,
+      "loginDaysLeft": 24,
+      "loginExpiring": false
+    },
+    {
+      "id": "7c91df4f-76c6-5e80-bd93-403a1699b570",
+      "alias": "client-acme",
+      "email": "alex@acme.example",
+      "plan": "Pro",
+      "active": false,
+      "healthy": true,
+      "problem": null,
+      "percent": 42,
+      "severity": "ok",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 42,
+          "resetsAt": "2026-11-01T09:40:00Z",
+          "resetsIn": "32m"
+        },
+        {
+          "label": "weekly",
+          "percent": 27,
+          "resetsAt": "2026-11-03T08:00:00Z",
+          "resetsIn": "2d 0h"
+        }
+      ],
+      "checkedAgo": "1m ago",
+      "stale": false,
+      "loginDaysLeft": 2,
+      "loginExpiring": true
+    },
+    {
+      "id": "fc46221c-2684-5dfb-b5a3-275d10e9ee15",
+      "alias": "research",
+      "email": "alex@lab.example",
+      "plan": "Max 20x",
+      "active": false,
+      "healthy": true,
+      "problem": null,
+      "percent": 100,
+      "severity": "critical",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 100,
+          "resetsAt": "2026-11-01T10:50:00Z",
+          "resetsIn": "1h 42m"
+        },
+        {
+          "label": "weekly",
+          "percent": 73,
+          "resetsAt": "2026-11-06T08:00:00Z",
+          "resetsIn": "5d 0h"
+        }
+      ],
+      "checkedAgo": "1m ago",
+      "stale": false,
+      "loginDaysLeft": 24,
+      "loginExpiring": false
+    }
+  ],
+  "threshold": 95,
+  "warnAt": 85,
+  "autoSwitch": true,
+  "pollSeconds": 300,
+  "idleCloseHours": 3,
+  "mcpCleanup": true,
+  "desktopVersion": "1.4.0",
+  "desktopUpdate": null,
+  "profiles": [
+    {
+      "name": "work",
+      "label": "Work",
+      "customLabel": true,
+      "folder": "/Users/alex/Library/Application Support/Claude-work",
+      "running": true,
+      "accountId": "7b0f0923-779f-5684-943d-f8cc40f80bd1",
+      "alias": "work",
+      "email": "alex@work.example",
+      "plan": "Team \u00b7 Max 5x",
+      "registered": true,
+      "percent": 88,
+      "severity": "warn",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 88,
+          "resetsAt": "2026-11-01T10:20:00Z",
+          "resetsIn": "1h 12m"
+        },
+        {
+          "label": "weekly",
+          "percent": 46,
+          "resetsAt": "2026-11-04T08:00:00Z",
+          "resetsIn": "3d 0h"
+        }
+      ],
+      "usageSource": "live",
+      "usageAge": null,
+      "problem": null,
+      "loginDaysLeft": 21,
+      "loginExpiring": false
+    },
+    {
+      "name": "personal",
+      "label": "Personal",
+      "customLabel": true,
+      "folder": "/Users/alex/Library/Application Support/Claude-personal",
+      "running": false,
+      "accountId": "546fd939-f5ed-5986-9ab5-05ac85c6d91e",
+      "alias": "personal",
+      "email": "alex@example.com",
+      "plan": "Max 5x",
+      "registered": true,
+      "percent": 14,
+      "severity": "ok",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 14,
+          "resetsAt": "2026-11-01T11:05:00Z",
+          "resetsIn": "1h 57m"
+        },
+        {
+          "label": "weekly",
+          "percent": 31,
+          "resetsAt": "2026-11-05T08:00:00Z",
+          "resetsIn": "4d 0h"
+        }
+      ],
+      "usageSource": "live",
+      "usageAge": null,
+      "problem": null,
+      "loginDaysLeft": 21,
+      "loginExpiring": false
+    },
+    {
+      "name": "acme",
+      "label": "Acme",
+      "customLabel": true,
+      "folder": "/Users/alex/Library/Application Support/Claude-acme",
+      "running": true,
+      "accountId": "7c91df4f-76c6-5e80-bd93-403a1699b570",
+      "alias": "client-acme",
+      "email": "alex@acme.example",
+      "plan": "Pro",
+      "registered": true,
+      "percent": 42,
+      "severity": "ok",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 42,
+          "resetsAt": "2026-11-01T09:40:00Z",
+          "resetsIn": "32m"
+        },
+        {
+          "label": "weekly",
+          "percent": 27,
+          "resetsAt": "2026-11-03T08:00:00Z",
+          "resetsIn": "2d 0h"
+        }
+      ],
+      "usageSource": "live",
+      "usageAge": null,
+      "problem": null,
+      "loginDaysLeft": 21,
+      "loginExpiring": false
+    },
+    {
+      "name": "research",
+      "label": "Research",
+      "customLabel": true,
+      "folder": "/Users/alex/Library/Application Support/Claude-research",
+      "running": false,
+      "accountId": "fc46221c-2684-5dfb-b5a3-275d10e9ee15",
+      "alias": "research",
+      "email": "alex@lab.example",
+      "plan": "Max 20x",
+      "registered": true,
+      "percent": 100,
+      "severity": "critical",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 100,
+          "resetsAt": "2026-11-01T10:50:00Z",
+          "resetsIn": "1h 42m"
+        },
+        {
+          "label": "weekly",
+          "percent": 73,
+          "resetsAt": "2026-11-06T08:00:00Z",
+          "resetsIn": "5d 0h"
+        }
+      ],
+      "usageSource": "live",
+      "usageAge": null,
+      "problem": null,
+      "loginDaysLeft": 21,
+      "loginExpiring": false
+    },
+    {
+      "name": "sandbox",
+      "label": "Sandbox",
+      "customLabel": true,
+      "folder": "/Users/alex/Library/Application Support/Claude-sandbox",
+      "running": false,
+      "accountId": "ec6b2c5b-1368-5e3f-9ae5-5cac6f6f1c77",
+      "alias": null,
+      "email": null,
+      "plan": null,
+      "registered": false,
+      "percent": 9,
+      "severity": "ok",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 9,
+          "resetsAt": null,
+          "resetsIn": null
+        }
+      ],
+      "usageSource": "desktop",
+      "usageAge": "2h 10m ago",
+      "problem": null,
+      "loginDaysLeft": 21,
+      "loginExpiring": false
+    },
+    {
+      "name": "family",
+      "label": "Family",
+      "customLabel": true,
+      "folder": "/Users/alex/Library/Application Support/Claude-family",
+      "running": false,
+      "accountId": "e052422f-3b52-5f04-af44-c1fd8b1a60fc",
+      "alias": null,
+      "email": null,
+      "plan": null,
+      "registered": false,
+      "percent": 61,
+      "severity": "ok",
+      "windows": [
+        {
+          "label": "5-hour",
+          "percent": 61,
+          "resetsAt": null,
+          "resetsIn": null
+        }
+      ],
+      "usageSource": "desktop",
+      "usageAge": "1d 3h ago",
+      "problem": null,
+      "loginDaysLeft": 21,
+      "loginExpiring": false
+    }
+  ]
+}

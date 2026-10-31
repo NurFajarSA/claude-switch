@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct ClaudeAccountsApp: App {
+struct AccountsManagerApp: App {
     @State private var store = Store()
     @Environment(\.openWindow) private var openWindow
 
@@ -17,25 +17,26 @@ struct ClaudeAccountsApp: App {
                 Text(store.headline)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Claude Accounts")
+            .accessibilityLabel("Accounts Manager")
             .accessibilityValue(store.headline == "–" ? "No usage data" : "\(store.headline) of limit used")
             .task {
                 await Snapshot.runIfRequested(store: store)
+                await Snapshot.previewIfRequested(store: store)
                 await store.start()
                 let environment = ProcessInfo.processInfo.environment
-                if environment["CLAUDE_ACCOUNTS_OPEN_SETTINGS"] == "1" { openWindow(id: "settings") }
-                if environment["CLAUDE_ACCOUNTS_OPEN_ONBOARDING"] == "1" || store.shouldAutoShowOnboarding { openWindow(id: "onboarding") }
+                if environment["ACCOUNTS_MANAGER_OPEN_SETTINGS"] == "1" { openWindow(id: "settings") }
+                if environment["ACCOUNTS_MANAGER_OPEN_ONBOARDING"] == "1" || store.shouldAutoShowOnboarding { openWindow(id: "onboarding") }
             }
         }
         .menuBarExtraStyle(.window)
 
-        Window("Claude Accounts", id: "settings") {
+        Window("Accounts Manager", id: "settings") {
             SettingsView(store: store)
         }
         .defaultSize(width: 760, height: 540)
         .defaultPosition(.center)
 
-        Window("Welcome to Claude Accounts", id: "onboarding") {
+        Window("Welcome to Accounts Manager for Claude", id: "onboarding") {
             OnboardingView(store: store)
         }
         .windowResizability(.contentSize)
@@ -103,7 +104,7 @@ struct Panel: View {
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "onboarding")
                 }
-                ActionRow(title: "Quit Claude Accounts") { NSApplication.shared.terminate(nil) }
+                ActionRow(title: "Quit Accounts Manager") { NSApplication.shared.terminate(nil) }
             }
         }
         .padding(Self.edge)
@@ -143,11 +144,11 @@ struct Panel: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text("Claude Accounts").font(.system(size: 13, weight: .semibold))
+            Text("Accounts Manager").font(.system(size: 13, weight: .semibold)).lineLimit(1).fixedSize()
             if store.busy { ProgressView().controlSize(.mini).accessibilityLabel("Working") }
             Spacer()
             if let overview = store.overview {
-                Text("Auto-switch at \(overview.threshold)%").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("Auto-switch at \(overview.threshold)%").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
                 Toggle(
                     "Auto-switch",
                     isOn: Binding(get: { overview.autoSwitch }, set: { on in Task { await store.setAutoSwitch(on) } })

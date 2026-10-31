@@ -46,7 +46,7 @@ struct RoundedWindow: NSViewRepresentable {
             return own + view.subviews.flatMap(effectViews)
         }
 
-        private static func mask(radius: CGFloat) -> NSImage {
+        static func mask(radius: CGFloat) -> NSImage {
             let edge = radius * 2 + 1
             let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
                 NSColor.black.setFill()

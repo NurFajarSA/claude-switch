@@ -1,46 +1,136 @@
-# claude-switch
+# Accounts Manager for Claude
 
-Use several Claude accounts on one Mac without logging out and back in.
+Run several Claude accounts on one Mac, and keep working when one of them hits its limit.
 
-- **See every account's usage** in the menu bar: the 5-hour and weekly limits for each Claude Desktop profile and each CLI account.
-- **Move a Claude Desktop conversation to another account** and keep the whole transcript. One click in the menu bar, or the agent does it itself when the current account reaches 95%.
-- **Switch the Claude Code CLI / VS Code login** automatically when an account runs low. MCP servers, settings and session history stay the same.
+[![CI](https://github.com/NurFajarSA/claude-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/NurFajarSA/claude-switch/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black)
+![Apple silicon](https://img.shields.io/badge/Apple%20silicon-arm64-black)
 
-> Unofficial. Not affiliated with or endorsed by Anthropic. It relies on how Claude Code and Claude Desktop store data on disk today, which can change in any release. Check the [Anthropic terms](https://www.anthropic.com/legal/consumer-terms) that apply to your accounts before using several of them.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-bar-dark.png">
+    <img src="docs/images/menu-bar.png" width="360" alt="Menu bar panel listing four Claude Desktop profiles with their usage bars, the active Claude Code CLI account at 88%, and a collapsed Switch Account row that says one of the other accounts needs a new sign-in">
+  </picture>
+</p>
 
-macOS only (Keychain, launchd, SwiftUI).
+Accounts Manager for Claude is a menu bar app and a CLI (`cs`) for Claude Desktop, Claude Code and the Claude Code extension in VS Code. It shows the 5-hour and weekly usage of every account. Before an account runs out, it moves your work to the account with the most usage left. MCP servers, settings and session history stay the same after a switch.
 
-## How it works
+> [!NOTE]
+> Unofficial. It relies on how Claude Code and Claude Desktop store data on disk today, which can change in any release. Check the [Anthropic terms](https://www.anthropic.com/legal/consumer-terms) that apply to your accounts before using several of them.
 
-Claude Desktop keeps one signed-in account per profile folder (`~/Library/Application Support/Claude-<name>`, started with `--user-data-dir`). Each Code session there is a small card in `claude-code-sessions/<account>/<org>/local_<id>.json` that points to a transcript in `~/.claude/projects/`. Transcripts are shared by every profile. Moving a session to another account means copying its card into that account's profile, so nothing has to be exported or replayed.
+## Why
 
-The Claude Code CLI keeps one login in the Keychain item `Claude Code-credentials`. That item also holds the OAuth tokens of your MCP servers. claude-switch replaces only the `claudeAiOauth` part, so MCP connections survive a switch. Logins for the other accounts are parked in separate Keychain items and refreshed in the background.
+A long agent run on one subscription stops when that subscription reaches its 5-hour or weekly limit. If you have more than one account, continuing means logging out, logging in to the other account, and finding the session again. On the CLI, that also disconnects every MCP server. Accounts Manager for Claude does the move for you. It switches the CLI login in the Keychain without touching MCP tokens, and it copies a Claude Desktop session into another account's profile window with its full transcript.
 
-More detail, including the invariants that keep refresh tokens valid, is in [docs/architecture.md](docs/architecture.md).
+## Features
+
+**Menu bar app**
+- One row per Claude Desktop profile and per CLI account, each with a usage bar and its reset time.
+- The CLI section shows the account in use. The other accounts sit behind **Switch Account**, sorted by usage left.
+- Click a Desktop row to open or focus that window. Right-click a row to rename it, sign in again, or move a recent session into it.
+- A Settings window in the System Settings style, and a setup assistant on first run.
+- Notifications when the CLI account switches, when an account crosses the warning level, and when a sign-in has three days or less left.
+
+**Claude Desktop**
+- Every profile is a folder under `~/Library/Application Support/Claude-<name>` with its own signed-in account. Several profiles can be open at once.
+- Move a Code session to another profile and keep the whole transcript.
+- After a Claude Desktop update, every profile that was open is reopened, not only the default one.
+
+**Claude Code CLI and VS Code**
+- Auto-switch at a threshold you choose (95% by default). Running sessions pick up the new login within about 30 seconds.
+- A rate-limit failure (`StopFailure`) triggers the switch immediately.
+- Logins for the other accounts are parked in the Keychain and refreshed in the background.
+
+**MCP connectors**
+- MCP servers on this Mac work in every account and stay signed in across switches.
+- Import claude.ai connectors that have a public URL, so they work in every account.
+
+**Project rules**
+- Limit a project folder to certain accounts. Auto-switch and session moves only pick allowed accounts.
+
+**Housekeeping**
+- Quits Claude Desktop profiles that have been idle for 3 hours.
+- Suggests removing MCP servers that were not used for 30 days.
+
+## Use cases
+
+### A long agent run reaches the limit
+
+You start a refactor in the terminal on `work`. At 95%, the hook switches the CLI login to the account with the most usage left before your next prompt. The session continues in the same terminal with the same MCP servers. A notification says which account took over.
+
+The same happens in Claude Desktop. The hook copies the session to the profile with the most usage left, preferring a profile whose window is closed, and opens that window. Claude answers the current message and tells you to continue there.
+
+### Several Desktop profiles open at once
+
+<img src="docs/images/menu-bar-switch.png" width="340" align="right" alt="Menu bar panel with Other Profiles and Switch Account expanded, showing two more Desktop profiles and three more CLI accounts with their usage">
+
+You keep one Claude Desktop window per account. The panel shows how much each one has left, so you can see which window to use next. To move a session, right-click the target profile and choose **Move Session Here**, or ask Claude to call `handoff_session`.
+
+A window only reads its session list at startup. A session moved into a window that is already open appears after that window restarts, and `cs handoff --restart` does the restart for you.
+
+<br clear="right">
+
+### Client work stays on the client's account
+
+<img src="docs/images/settings-project-rules.png" width="600" alt="Settings window on the Project Rules pane, listing project folders and the accounts each one may use">
+
+`~/Clients/Acme` may only use the account Acme pays for. Add a project rule in **Settings › Project Rules**, or run `cs rules set ~/Clients/Acme acme`. If you send a prompt there while the CLI is on another account, it switches to `acme` first. When every allowed account is used up, Claude asks you to choose:
+
+- Wait for the reset.
+- Use another account just this once.
+- Allow that account for the project from now on.
+
+### Connectors are shared across accounts
+
+<img src="docs/images/settings-connectors.png" width="600" alt="Settings window on the Connectors pane, listing MCP servers on this Mac with their status and claude.ai connectors that can be imported">
+
+You connected Figma, Notion and Linear on claude.ai with one account. **Settings › Connectors › Import All** adds the ones with a public URL to this Mac, so every account uses them. Servers that need a sign-in get a **Sign In** button.
+
+### Idle profiles close themselves
+
+<img src="docs/images/settings-general.png" width="600" alt="Settings window on the General pane with Launch at Login, Housekeeping options for closing idle profiles and suggesting unused MCP server cleanup, and Notifications">
+
+A Desktop window left open overnight can use more than 1 GB of memory. After 3 hours without session changes, the background service quits it, and a notification offers **Open Again**. It never quits the window in front, or a window opened within the last 3 hours. Sessions stay saved.
 
 ## Install
 
-Requirements: macOS 15+ on Apple silicon, Claude Code CLI.
+Requirements: macOS 15 or later on Apple silicon, and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code).
 
 ### From a release
 
-Download `ClaudeAccounts-<version>-macos-arm64.zip` from [Releases](https://github.com/NurFajarSA/claude-switch/releases), unzip it and move `Claude Accounts.app` to `~/Applications`. The app bundles the `cs` CLI at `Contents/Resources/cs`. A standalone `cs-<version>-macos-arm64.tar.gz` is there too, and each file has a `.sha256` next to it.
+1. Download `AccountsManager-<version>-macos-arm64.zip` from [Releases](https://github.com/NurFajarSA/claude-switch/releases).
+2. Unzip it and move `Accounts Manager for Claude.app` to `/Applications`.
+3. Open the app. The setup assistant installs the background service and walks you through your first account.
 
-Or with Homebrew:
+The app bundles the `cs` CLI at `Contents/Resources/cs`. Releases also have a standalone `cs-<version>-macos-arm64.tar.gz`, and each file has a `.sha256` next to it.
+
+To install from the terminal instead of the assistant:
 
 ```bash
-brew install --cask nurfajarsa/tap/claude-accounts
+"/Applications/Accounts Manager for Claude.app/Contents/Resources/cs" install --app "/Applications/Accounts Manager for Claude.app"
 ```
 
-The cask lives in a separate tap repository, `NurFajarSA/homebrew-tap`, which has to exist before this works. Copy `packaging/homebrew/claude-accounts.rb` to `Casks/claude-accounts.rb` there; `scripts/update-cask.sh <version>` fills in the version and checksum after a release is packaged. The cask also links `cs` into your `PATH`.
+Builds without a Developer ID signature are only ad-hoc signed. The first time, right-click the app and choose **Open**, then **Open** again in the dialog. Or run:
 
-Builds without a Developer ID signature are only ad-hoc signed. The first time, right-click the app and choose Open (then Open again in the dialog), or run `xattr -dr com.apple.quarantine "/Applications/Claude Accounts.app"`. Releases built with a Developer ID certificate are notarized and open normally.
+```bash
+xattr -dr com.apple.quarantine "/Applications/Accounts Manager for Claude.app"
+```
 
-Then run `cs install` to set up the poller, MCP server and hooks described below. It installs the app too, so pass the one you downloaded: `"/Applications/Claude Accounts.app/Contents/Resources/cs" install --app "/Applications/Claude Accounts.app"` (after a Homebrew install, `cs install --app "/Applications/Claude Accounts.app"`).
+Releases built with a Developer ID certificate are notarized and open normally.
+
+### With Homebrew
+
+```bash
+brew install --cask nurfajarsa/tap/accounts-manager-for-claude
+cs install --app "/Applications/Accounts Manager for Claude.app"
+```
+
+The cask also links `cs` into your `PATH`. It lives in a separate tap repository, `NurFajarSA/homebrew-tap`, which has to exist before this works. Copy `packaging/homebrew/accounts-manager-for-claude.rb` to `Casks/accounts-manager-for-claude.rb` there. After a release is packaged, `scripts/update-cask.sh <version>` fills in the version and checksum.
 
 ### From source
 
-Requirements: [Bun](https://bun.sh) 1.3+, Xcode command line tools (Swift 5.10+).
+Requirements: [Bun](https://bun.sh) 1.3 or later, and the Xcode command line tools (Swift 5.10 or later).
 
 ```bash
 git clone https://github.com/NurFajarSA/claude-switch.git
@@ -49,119 +139,213 @@ bun install
 bun run install:local
 ```
 
-`install:local` builds the `cs` binary and the menu bar app, then:
+`install:local` builds `cs` and the app, then installs:
 
 | What | Where |
 | --- | --- |
 | `cs` binary | `~/.local/bin/cs` |
 | Background usage poller | LaunchAgent `app.claude-switch.daemon` |
-| Menu bar app | `~/Applications/Claude Accounts.app`, opens at login |
+| Menu bar app | `~/Applications/Accounts Manager for Claude.app`, opens at login |
 | MCP server `claude-switch` | Claude Code user scope (`claude mcp add --scope user`) |
-| Hooks on `UserPromptSubmit` and `StopFailure` | `~/.claude/settings.json` (a backup is written next to it first) |
+| Hooks on `UserPromptSubmit` and `StopFailure` | `~/.claude/settings.json`, after a backup next to it |
 
-`cs uninstall` removes all of it. Stored logins stay in the Keychain under the service `claude-switch` until you `cs remove` them.
+`cs install` also removes an older `Claude Accounts.app` from `~/Applications`.
 
-## First run
+## Quick start
 
 Add each account once. One command sets it up for both Claude Desktop and the CLI:
 
 ```bash
 cs register          # the account the CLI is logged in with now
-cs add work          # new Desktop profile "work" opens; sign in there, then approve the CLI login in the browser
+cs add work          # opens a new Desktop profile "work"; sign in there, then approve the CLI login in the browser
 cs add personal
 cs status
 ```
 
-`cs add` creates the Desktop profile and waits for you to sign in to it, then runs the CLI login and checks that both use the same account. The CLI keeps using the account it had before. The browser step signs in with whatever claude.ai account the browser uses, so open the printed link in a private window when it is on a different account.
+`cs add` creates the Desktop profile and waits for you to sign in to it. Then it runs the CLI login and checks that both use the same account. The CLI keeps the account it had before. The browser step signs in with whatever claude.ai account the browser uses, so open the printed link in a private window when the browser is on a different account.
 
-Already have a Desktop profile for an account? `cs link <profile>` adds only the CLI side. The menu bar has the same actions: "Add Account…" and, on a profile under "Other Profiles", "Set Up for CLI…".
+If a Desktop profile for the account already exists, `cs link <profile>` adds only the CLI side. The menu bar has the same actions: **Add Account…**, and **Set Up for CLI…** on a profile under **Other Profiles**.
 
-### Logins expire
+### Logins expire after about 28 days
 
-Measured on Claude Code 2.1: a CLI login lasts about 28 days from sign-in, and refreshing it does not extend that. Desktop profile logins also last about 28 days, and appear to be extended each time the profile is opened. claude-switch shows the days left and warns 5 days ahead; renew a CLI login with `cs relogin <alias>` (or "Sign In Again…" in the menu bar), and open a Desktop profile now and then to keep it signed in.
+Measured on Claude Code 2.1, a CLI login lasts about 28 days from sign-in, and refreshing it does not extend that. Desktop profile logins also last about 28 days, and opening the profile appears to extend them. The app shows the days left and warns 5 days ahead. To renew a CLI login, run `cs relogin <alias>` or choose **Sign In Again…** in the menu bar. Open each Desktop profile now and then to keep it signed in.
 
-## Using it
+## Configure
 
-**Menu bar.** Click the gauge for a Control Center style panel. Each Desktop profile and CLI account is a row with its usage. Click a Desktop row to open or show that window; click a CLI row to use that account. Right-click a row to rename it or move a recent session into it. Profiles whose account is not registered with `cs add` sit under "Other Profiles". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
+<img src="docs/images/settings-auto-switch.png" width="600" alt="Settings window on the Auto-switch pane with the switch on, the switch level at 95% and the warning level at 85%">
 
-**Project rules.** Settings › Project Rules (or `cs rules set <folder> <account…>`) limits which accounts a project folder may use; the deepest matching folder wins, and folders without a rule can use every account.
-- CLI and VS Code: when you send a prompt in a project whose rule does not include the signed-in account, the CLI switches to an allowed one first. Auto-switch only picks allowed accounts.
-- Claude Desktop: when a session's window belongs to an account the project does not allow, Claude says so once and offers to move the session. Automatic moves only go to allowed profiles.
-- When every allowed account is used up, Claude asks whether to wait for the reset, use another account just this once, or allow that account for the project from now on (`cs rules allow <folder> <account>`).
-- The MCP tools follow the same rule; `ignore_project_rule` makes a one-off exception and `allow_account_for_project` adds an account.
+**Settings…** in the menu bar opens the Settings window. Each setting also has a `cs config` key:
 
-**Housekeeping.** Every 5 minutes the background service quits Claude Desktop profiles whose sessions have not changed for 3 hours (never the window in front or one opened within that time; sessions stay saved, and a notification offers Open Again). Once a day it reads Claude Code transcripts to see which MCP servers are used, and at most once a month offers to remove servers unused for 30 days. Change or turn off both in Settings › General › Housekeeping, or with `cs config idleCloseHours <hours|0>` and `cs config mcpCleanup false`. `cs events` lists what it did.
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `autoSwitch` | `true` | Switch or move automatically when an account reaches the threshold |
+| `threshold` | `95` | Usage percentage that triggers a switch |
+| `warnAt` | `85` | Usage percentage that posts a warning notification |
+| `pollSeconds` | `300` | How often the background service checks usage |
+| `idleCloseHours` | `3` | Quit Desktop profiles idle this long; `0` turns it off |
+| `mcpCleanup` | `true` | Suggest removing MCP servers unused for 30 days |
 
-**Connectors.** Settings › Connectors lists the MCP servers on this Mac, which every account uses and which stay signed in across switches, and the claude.ai connectors each of your accounts has. Connectors with a public URL (Figma, GitHub, Notion, Google, Linear and most others) can be added to this Mac with one click, or all at once; sign in to each once with `/mcp`. Anthropic-hosted ones (Claude Docs, visualize) only work inside claude.ai, and so do connectors whose sign-in accepts only claude.ai (seen with GitHub, Slack, Asana, Box and HubSpot): import adds each server, checks it, and removes it again with a note when its sign-in rejects other apps, so the claude.ai copy keeps working. Claude Code hides a claude.ai or plugin copy of a server that has the same URL as one on this Mac (seen in `claude mcp list` on Claude Code 2.1), so tools are not listed twice. From the terminal: `cs connectors [--check]`, `cs connectors import --all`, `cs connectors add <name> <url>`, `cs connectors remove <name>`, `cs connectors login <name>`. In the app, servers that need it get a Sign In button (and Sign In to All), which opens Terminal and runs `claude mcp login` there, because some sign-ins ask you to paste a redirect URL.
+<img src="docs/images/settings-desktop-profiles.png" width="600" alt="Settings window on the Desktop Profiles pane listing each profile with its account, usage and sign-in status">
 
-**First run and notifications.** The first time the app opens without the background service or any account, a setup assistant installs everything with one click and walks through adding the first account ("Show Setup Assistant…" reopens it). The app posts a macOS notification when the CLI account switches, when an account crosses the warning level, and when a sign-in has three days or less left; turn them off in Settings › General.
+Every CLI account and Desktop profile has its own page with usage, sign-in expiry, rename and sign-in actions. Renaming a Desktop profile only changes its display name. The profile folder keeps its name.
 
-**Settings.** "Settings…" in the menu bar opens a System Settings style window: launch at login, auto-switch on or off with adjustable switch and warning levels (`cs config threshold 90` does the same), how often usage is checked, every CLI account and Desktop profile with its own page (usage, sign-in expiry, rename, sign in again, move a session), and Claude Desktop update status.
+## Project rules
 
-To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAPSHOT=/tmp/panel.png "dist/Claude Accounts.app/Contents/MacOS/ClaudeAccounts"` (add `CLAUDE_ACCOUNTS_SNAPSHOT_DARK=1` for dark mode). `CLAUDE_ACCOUNTS_OPEN_SETTINGS=1` and `CLAUDE_ACCOUNTS_OPEN_ONBOARDING=1` open those windows at launch.
+A rule maps a folder to the accounts it may use. The deepest matching folder wins. Folders without a rule can use every account. Set rules in **Settings › Project Rules**, or with `cs rules`.
 
-**From an agent.** The MCP server gives Claude three tools:
+- **CLI and VS Code.** If a project's rule does not include the signed-in account, the CLI switches to an allowed account before the prompt runs. Auto-switch only picks allowed accounts.
+- **Claude Desktop.** If a session's window belongs to an account the project does not allow, Claude says so once and offers to move the session. Automatic moves only go to allowed profiles.
+- **All accounts used up.** Claude offers to wait for the reset, use another account once, or allow that account for the project (`cs rules allow <folder> <account>`).
+- **MCP tools.** The tools follow the same rule. `ignore_project_rule` makes a one-off exception, and `allow_account_for_project` adds an account to the rule.
 
-| Tool | Does |
+## Connectors
+
+**Settings › Connectors** lists two groups:
+
+- The MCP servers on this Mac. Every account uses them, and they stay signed in across switches.
+- The claude.ai connectors each of your accounts has.
+
+Connectors with a public URL, such as Figma, Notion, Google and Linear, can be added to this Mac one at a time or all at once. Sign in to each once with `/mcp`, or with the **Sign In** button. The button opens Terminal and runs `claude mcp login` there, because some sign-ins ask you to paste a redirect URL.
+
+Some connectors only work inside claude.ai:
+
+- Anthropic-hosted connectors, such as Claude Docs and visualize.
+- Connectors whose sign-in accepts only claude.ai. This was seen with GitHub, Slack, Asana, Box and HubSpot.
+
+Import adds each server and checks it. If the server's sign-in rejects other apps, import removes it again with a note, so the claude.ai copy keeps working. Claude Code hides a claude.ai or plugin copy of a server that has the same URL as one on this Mac (seen in `claude mcp list` on Claude Code 2.1), so tools are not listed twice.
+
+## Housekeeping
+
+Every 5 minutes, the background service quits Claude Desktop profiles whose sessions have not changed for 3 hours. It never quits the window in front, or one opened within that time. Sessions stay saved, and a notification offers **Open Again**.
+
+Once a day, it reads Claude Code transcripts to see which MCP servers are used. At most once a month, it offers to remove servers unused for 30 days.
+
+Change or turn off both in **Settings › General › Housekeeping**, or with `cs config idleCloseHours <hours|0>` and `cs config mcpCleanup false`. `cs events` lists what the service did on its own.
+
+## Use it from an agent
+
+`cs install` registers an MCP server named `claude-switch`, which gives Claude these tools:
+
+| Tool | What it does |
 | --- | --- |
-| `list_accounts` | Every profile and account with its usage |
-| `handoff_session` | Moves the current Desktop conversation to the account with the most headroom, or to a named profile, and opens that window |
-| `switch_cli_account` | Changes the CLI / VS Code login |
+| `list_accounts` | Lists every profile and account with its usage and the project rule |
+| `handoff_session` | Moves the current Desktop conversation to the account with the most usage left, or to a named profile, and opens that window |
+| `switch_cli_account` | Changes the CLI and VS Code login |
+| `allow_account_for_project` | Adds an account to the current project's rule |
 
-**Automatically.** With `autoSwitch` on (the default), the hook checks usage before each prompt:
+## CLI reference
 
-- In Claude Desktop, when the window's account is at or above the threshold, the session is copied to the profile with the most headroom, preferring profiles whose window is closed, and that window opens. The agent answers the current message and tells you to continue there.
-- In the CLI or VS Code, the login is switched. Running sessions pick up the new login within about 30 seconds.
-- When a request fails on a rate limit (`StopFailure`), the same happens immediately.
+| Command | What it does |
+| --- | --- |
+| `cs status [--refresh] [--json]` | Usage for every Desktop profile and CLI account |
+| `cs doctor [--json]` | Checks that the Keychain, Anthropic endpoints, Claude Desktop and the install match what `cs` expects |
+| `cs add <name> [--cli-only \| --desktop-only]` | Adds an account to Claude Desktop and the CLI |
+| `cs link <profile> [--as alias]` | Signs the CLI in to the account a Desktop profile uses |
+| `cs register [alias]` | Registers the account the CLI uses now |
+| `cs relogin <alias>` | Signs in to a CLI account again before its login expires |
+| `cs switch <alias\|email> \| --auto` | Changes the CLI and VS Code login |
+| `cs sessions [profile] [--limit n] [--json]` | Lists recent Claude Desktop Code sessions |
+| `cs handoff <session-id> [--to profile] [--restart] [--no-open]` | Moves a Desktop session to another profile |
+| `cs open <profile>` | Opens or focuses a Desktop window |
+| `cs new-profile <name>` | Creates a Desktop profile and opens it to sign in |
+| `cs label <profile> <label> \| --clear` | Sets a display name for a Desktop profile |
+| `cs update-desktop` | Installs a downloaded Claude Desktop update and reopens every open profile |
+| `cs rename <alias> <new-alias>` | Renames a CLI account |
+| `cs remove <alias>` | Forgets an account and deletes its stored login |
+| `cs config [key] [value]` | Shows or changes settings |
+| `cs rules [list] \| set \| allow \| remove` | Manages project rules |
+| `cs connectors [list [--check] \| import \| add \| remove \| login \| logout]` | Manages MCP servers and claude.ai connectors |
+| `cs events [--since <time>] [--json]` | Lists what the background service did on its own |
+| `cs login-item [on\|off]` | Shows or changes whether the app opens at login |
+| `cs poll` | Fetches usage for every account once |
+| `cs statusline` | Prints a one-line summary for a Claude Code status line |
+| `cs install [--app path]` / `cs uninstall` | Installs or removes the binary, poller, MCP server, hooks and app |
 
-**Commands.**
+`cs help` prints the full usage of every command.
 
-```
-cs status [--refresh] [--json]        usage for every profile and account
-cs doctor [--json]                  check that the Keychain, Anthropic endpoints, Claude Desktop and the install still match what claude-switch expects
-cs sessions [profile]                 recent Desktop sessions
-cs handoff <id> [--to name] [--restart]  move a Desktop session to another profile
-cs open <profile>                     open or focus a Desktop window
-cs new-profile <name>                 create a Desktop profile and open it to sign in
-cs update-desktop                     install a downloaded Claude Desktop update, then reopen every open profile
-cs switch <alias> | --auto            change the CLI login
-cs add <name> / cs link <profile>     add an account to Desktop and the CLI / link the CLI to a Desktop profile
-cs relogin <alias>                    renew a CLI login before it expires
-cs register [alias]                   register the account the CLI uses now
-cs label <profile> "<name>" | --clear   display name for a Desktop profile (folder unchanged)
-cs rename <alias> <new> / cs remove <alias>
-cs config [key] [value]               threshold (95), warnAt (85), pollSeconds (120), autoSwitch (true)
-```
+## How it works
 
-## Claude Desktop updates
+The Claude Code CLI keeps one login in the Keychain item `Claude Code-credentials`. The same item holds the OAuth tokens of your MCP servers. A switch replaces only the `claudeAiOauth` part, so MCP connections survive it. Claude Code rereads the item every 30 seconds, so running sessions pick up the switch without a restart.
 
-Claude Desktop installs an update only after every window has quit, and then reopens only the default profile. The background poller watches for that: when the installed version changes, it reopens every profile that was open in the 15 minutes before. When an update is downloaded and waiting, the menu bar shows it; installing from there (or `cs update-desktop`) quits every open profile, waits for the new version and reopens them.
+Refresh tokens rotate, so two programs that refresh the same account would log each other out. Each account therefore has exactly one owner. Claude Code owns the live account. `cs` owns every parked account, stored in the Keychain service `claude-switch`, and refreshes it in the background.
+
+Claude Desktop keeps one signed-in account per profile folder, started with `--user-data-dir`. Each Code session is a small card in `claude-code-sessions/<account>/<org>/local_<id>.json` that points to a transcript in `~/.claude/projects/`. Every profile shares the transcripts. Moving a session copies its card into the other profile, so nothing is exported or replayed.
+
+Usage comes from the endpoint Claude Code uses for `/usage`. [docs/architecture.md](docs/architecture.md) covers the switch sequence, crash recovery and the Desktop internals.
 
 ## Limits
 
-- A Claude Desktop window reads its session list only when it starts. A session moved into a window that is already open shows up after you quit (Cmd+Q) and reopen it. `cs handoff --restart` and the menu bar app can do that for you. Automatic moves prefer a profile whose window is closed for this reason.
-- If the source window is still open, the moved session stays in both sidebars. Keep working in one of them only.
-- Connectors you added on claude.ai belong to that account. After a move, the session uses the connectors of the new account. MCP servers added locally (`claude mcp add --scope user`) work the same in every account.
-- Usage numbers come from an endpoint Claude Code uses for `/usage`. It is undocumented and may change. Run `cs doctor` after a Claude Code or Claude Desktop update. It prints one line per check and exits 1 when something is broken.
+- A Claude Desktop window reads its session list only when it starts. A session moved into an open window appears after you quit it (Cmd+Q) and reopen it. `cs handoff --restart` and the menu bar app can do that for you. Automatic moves prefer a profile whose window is closed for this reason.
+- If the source window is still open, the moved session stays in both sidebars. Keep working in only one of them.
+- Connectors added on claude.ai belong to that account. After a move, the session uses the new account's claude.ai connectors. MCP servers added on this Mac (`claude mcp add --scope user`) work the same in every account.
+- The usage endpoint is undocumented and may change. Run `cs doctor` after a Claude Code or Claude Desktop update. It prints one line per check and exits with code 1 when something is broken.
+
+## Privacy and security
+
+- Logins stay in the macOS Keychain. `cs` never writes a token to a file or a log.
+- The only network calls go to Anthropic: the usage, profile and token refresh endpoints that Claude Code itself uses.
+- There is no telemetry and no account on any server of this project.
+- State lives in `~/.config/claude-switch/`, and the log is `~/.config/claude-switch/claude-switch.log`.
+
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
+## Uninstall
+
+```bash
+cs uninstall
+```
+
+This removes the binary, the background service, the MCP server, the hooks and the app. Stored logins stay in the Keychain under the service `claude-switch` until you run `cs remove <alias>` for each account.
 
 ## Development
 
 ```bash
 bun install
-bun run check        # typecheck + tests
-CI_NO_KEYCHAIN=1 bun test   # skip test/keychain-e2e.test.ts, which uses throwaway items in the real macOS Keychain
+bun run check                # typecheck and tests
+CI_NO_KEYCHAIN=1 bun test    # skips test/keychain-e2e.test.ts, which uses throwaway items in the real macOS Keychain
 bun src/cli.ts status
-./macos/build-app.sh
+./macos/build-app.sh         # builds dist/Accounts Manager for Claude.app
 ```
+
+The app reads these environment variables at launch:
+
+| Variable | Effect |
+| --- | --- |
+| `CLAUDE_SWITCH_BIN=<path>` | Runs this `cs` instead of the installed one |
+| `ACCOUNTS_MANAGER_SNAPSHOT=<file.png>` | Renders the menu bar panel to a PNG and exits |
+| `ACCOUNTS_MANAGER_SNAPSHOT_DARK=1` | Renders the snapshot in dark mode |
+| `ACCOUNTS_MANAGER_SNAPSHOT_OTHERS=1` | Expands **Other Profiles** and **Switch Account** in the snapshot or preview |
+| `ACCOUNTS_MANAGER_PREVIEW_PANEL=1` | Shows the menu bar panel in a floating window, for screenshots |
+| `ACCOUNTS_MANAGER_APPEARANCE=light\|dark` | Forces the app's appearance |
+| `ACCOUNTS_MANAGER_OPEN_SETTINGS=1` | Opens the Settings window at launch; add `-settingsPane rules` (or another pane) to pick the page |
+| `ACCOUNTS_MANAGER_OPEN_ONBOARDING=1` | Opens the setup assistant at launch |
+
+The screenshots in `docs/images` come from anonymised fixtures in `scripts/demo`, served by a stand-in `cs`. To regenerate them after a UI change, build the app and run:
+
+```bash
+scripts/screenshots.sh
+```
+
+The script runs the app under a throwaway home folder, so it never reads your accounts or changes your preferences. It needs Screen Recording permission for the terminal you run it from.
 
 ### Releasing
 
-The version lives in `package.json` and feeds `cs --version`, the MCP server and the app's `Info.plist`. To release, bump it, move the `CHANGELOG.md` entries under the new version, and push a tag `v<version>`. The `Release` workflow tests, runs `scripts/package-release.sh` and publishes the zip and tarball with their checksums. Run the script locally to get the same files in `dist/release/`.
+The version lives in `package.json`. It feeds `cs --version`, the MCP server and the app's `Info.plist`. To release:
 
-Signing is optional. Set `DEVELOPER_ID_APP` to a codesign identity to sign with the hardened runtime. Add `NOTARY_PROFILE` (a `notarytool` keychain profile) or `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` to notarize and staple. In CI, set the secrets `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` for signing and the three `APPLE_*` secrets for notarization; without them the release is ad-hoc signed.
+1. Bump the version in `package.json`.
+2. Move the `CHANGELOG.md` entries under the new version.
+3. Push a tag `v<version>`.
 
-Logs: `~/.config/claude-switch/claude-switch.log`.
+The `Release` workflow runs the tests, runs `scripts/package-release.sh`, and publishes the zip and tarball with their checksums. Run the script locally to get the same files in `dist/release/`.
+
+Signing is optional. Set `DEVELOPER_ID_APP` to a codesign identity to sign with the hardened runtime. To notarize and staple, also set `NOTARY_PROFILE` (a `notarytool` keychain profile), or set `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`. In CI, the secrets `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` enable signing, and the three `APPLE_*` secrets enable notarization. Without them, the release is ad-hoc signed.
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first, and run `bun run check` before you open a pull request.
 
 ## License
 
 [MIT](LICENSE)
+
+Accounts Manager for Claude is an independent project. It is not affiliated with, endorsed by, or sponsored by Anthropic. Claude is a trademark of Anthropic, PBC.

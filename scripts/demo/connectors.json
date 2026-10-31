@@ -1,0 +1,118 @@
+{
+  "checked": true,
+  "servers": [
+    {
+      "name": "github",
+      "origin": "local",
+      "target": "https://api.githubcopilot.com/mcp/",
+      "transport": "http",
+      "health": "connected",
+      "detail": "connected",
+      "removable": true
+    },
+    {
+      "name": "linear",
+      "origin": "local",
+      "target": "https://mcp.linear.app/mcp",
+      "transport": "http",
+      "health": "connected",
+      "detail": "connected",
+      "removable": true
+    },
+    {
+      "name": "notion",
+      "origin": "local",
+      "target": "https://mcp.notion.com/mcp",
+      "transport": "http",
+      "health": "needs_auth",
+      "detail": "Needs authentication",
+      "removable": true
+    },
+    {
+      "name": "firebase",
+      "origin": "local",
+      "target": "npx -y firebase-tools@latest mcp",
+      "transport": "stdio",
+      "health": "connected",
+      "detail": "connected",
+      "removable": true
+    },
+    {
+      "name": "playwright",
+      "origin": "local",
+      "target": "npx @playwright/mcp@latest",
+      "transport": "stdio",
+      "health": "connected",
+      "detail": "connected",
+      "removable": true
+    },
+    {
+      "name": "plugin:figma:figma",
+      "origin": "plugin",
+      "target": "https://mcp.figma.com/mcp",
+      "transport": "http",
+      "health": "connected",
+      "detail": "connected",
+      "removable": false
+    },
+    {
+      "name": "claude.ai Gmail",
+      "origin": "account",
+      "target": "https://gmail.mcp.claude.com/mcp",
+      "transport": "http",
+      "health": "connected",
+      "detail": "connected",
+      "removable": false
+    }
+  ],
+  "connectors": [
+    {
+      "name": "Linear",
+      "url": "https://mcp.linear.app/mcp",
+      "accounts": [
+        "work",
+        "client-acme"
+      ],
+      "portability": "portable",
+      "localName": "linear"
+    },
+    {
+      "name": "Notion",
+      "url": "https://mcp.notion.com/mcp",
+      "accounts": [
+        "work",
+        "personal"
+      ],
+      "portability": "portable",
+      "localName": "notion"
+    },
+    {
+      "name": "Sentry",
+      "url": "https://mcp.sentry.dev/mcp",
+      "accounts": [
+        "client-acme"
+      ],
+      "portability": "portable",
+      "localName": null
+    },
+    {
+      "name": "Gmail",
+      "url": "https://gmail.mcp.claude.com/mcp",
+      "accounts": [
+        "personal"
+      ],
+      "portability": "account_only",
+      "localName": null
+    },
+    {
+      "name": "Google Drive",
+      "url": "https://drivemcp.googleapis.com/mcp/v1",
+      "accounts": [
+        "work",
+        "personal"
+      ],
+      "portability": "account_only",
+      "localName": null
+    }
+  ]
+}

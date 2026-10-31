@@ -9,7 +9,7 @@
   "scripts": {
     "build": "bun build --compile --minify src/cli.ts --outfile dist/cs && codesign --force --sign - --identifier app.claude-switch.cli dist/cs",
     "build:app": "./macos/build-app.sh",
-    "install:local": "bun run build && bun run build:app && ./dist/cs install --app \"dist/Claude Accounts.app\"",
+    "install:local": "bun run build && bun run build:app && ./dist/cs install --app \"dist/Accounts Manager for Claude.app\"",
     "test": "bun test",
     "typecheck": "tsc --noEmit -p .",
     "check": "bun run typecheck && bun test"

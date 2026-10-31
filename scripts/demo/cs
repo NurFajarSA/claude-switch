@@ -1,0 +1,15 @@
+#!/bin/zsh
+# Stand-in for cs that answers the menu bar app from the fixtures next to it, for screenshots.
+# Usage: CLAUDE_SWITCH_BIN=scripts/demo/cs "dist/Accounts Manager for Claude.app/Contents/MacOS/AccountsManager"
+# Paths in the fixtures use /Users/alex and follow CFFIXED_USER_HOME when it is set.
+here=${0:A:h}
+show() { sed "s#/Users/alex#${CFFIXED_USER_HOME:-/Users/alex}#g" "$here/$1.json"; }
+case "$1 $2" in
+  "status "*) show status ;;
+  "sessions "*) show sessions ;;
+  "rules "*) show rules ;;
+  "connectors list") show connectors ;;
+  "connectors unused") show unused ;;
+  "events "*) show events ;;
+  *) echo "demo: '$*' is not available in demo mode" >&2; exit 1 ;;
+esac
