@@ -35,7 +35,9 @@ export interface ConnectorReport {
 export type Runner = (args: string[], timeoutMs?: number) => Promise<{ code: number; stdout: string; stderr: string }>;
 
 const ACCOUNT_ONLY_HOSTS = [/(^|\.)anthropic\.com$/, /(^|\.)claude\.ai$/, /(^|\.)claudemcpcontent\.com$/];
-const STATUS: Record<string, ServerHealth> = { "✔": "connected", "✓": "connected", "✗": "failed", "×": "failed" };
+const STATUS: Record<string, ServerHealth> = { "✔": "connected", "✓": "connected", "✗": "failed", "✘": "failed", "×": "failed" };
+
+export const CLAUDE_AI_ONLY = /dynamic client registration/i;
 
 export function portability(url: string): Portability {
   let host: string;
@@ -121,11 +123,13 @@ export function mergeConnectors({
   servers,
   local,
   cliAccount,
+  claudeOnly = new Set<string>(),
 }: {
   fromProfiles: Map<string, { name: string; accounts: Set<string> }>;
   servers: readonly McpServer[];
   local: readonly LocalServerConfig[];
   cliAccount: string | null;
+  claudeOnly?: ReadonlySet<string>;
 }): AccountConnector[] {
   const merged = new Map<string, { name: string; accounts: Set<string> }>();
   for (const [url, entry] of fromProfiles) merged.set(normalize(url), { name: entry.name, accounts: new Set(entry.accounts) });
@@ -142,13 +146,13 @@ export function mergeConnectors({
       name: entry.name,
       url,
       accounts: [...entry.accounts].sort(),
-      portability: portability(url),
+      portability: claudeOnly.has(url) ? ("account_only" as const) : portability(url),
       localName: localByUrl.get(url) ?? pluginByUrl.get(url) ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function normalize(url: string): string {
+export function normalize(url: string): string {
   return url.replace(/\/+$/, "");
 }
 

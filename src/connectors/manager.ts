@@ -1,18 +1,24 @@
+import { join } from "node:path";
+import { z } from "zod";
 import { UserError } from "../core/engine.ts";
-import type { DesktopHub } from "../desktop/hub.ts";
+import type { DesktopProfile } from "../desktop/profiles.ts";
+import { readJson, writeJsonAtomic } from "../infra/files.ts";
 import type { Paths } from "../infra/paths.ts";
 import {
   type AccountConnector,
+  CLAUDE_AI_ONLY,
   type ConnectorReport,
   connectorsFromProfiles,
   localNameFor,
   mergeConnectors,
+  normalize,
   parseMcpList,
   readUserScope,
   type Runner,
 } from "./connectors.ts";
 
 const LIST_TIMEOUT_MS = 90_000;
+const Learned = z.object({ version: z.literal(1), claudeOnly: z.array(z.string()) });
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export interface ImportResult {
@@ -24,7 +30,12 @@ export interface ImportResult {
 
 export class ConnectorManager {
   constructor(
-    private readonly deps: { paths: Paths; hub: DesktopHub; run: Runner; cliAccount: () => Promise<string | null> },
+    private readonly deps: {
+      paths: Paths;
+      hub: { overview(): Promise<{ profiles: { profile: DesktopProfile }[] }> };
+      run: Runner;
+      cliAccount: () => Promise<string | null>;
+    },
   ) {}
 
   async report({ check }: { check: boolean }): Promise<ConnectorReport> {
@@ -42,7 +53,13 @@ export class ConnectorManager {
           removable: true,
         }));
     const [profiles, cliAccount] = await Promise.all([this.deps.hub.overview().then((o) => o.profiles.map((p) => p.profile)), this.deps.cliAccount()]);
-    const connectors = mergeConnectors({ fromProfiles: await connectorsFromProfiles(profiles), servers, local, cliAccount });
+    const connectors = mergeConnectors({
+      fromProfiles: await connectorsFromProfiles(profiles),
+      servers,
+      local,
+      cliAccount,
+      claudeOnly: new Set(await this.learnedClaudeOnly()),
+    });
     return { servers, connectors, checked: check };
   }
 
@@ -56,7 +73,33 @@ export class ConnectorManager {
     const taken = new Set(report.servers.map((s) => s.name));
     const results: ImportResult[] = [];
     for (const connector of candidates) results.push(await this.importOne(connector, taken));
+    return this.rollBackClaudeOnly(results, candidates);
+  }
+
+  private async rollBackClaudeOnly(results: ImportResult[], candidates: readonly AccountConnector[]): Promise<ImportResult[]> {
+    const added = results.filter((r) => r.ok && r.detail.startsWith("added"));
+    if (added.length === 0) return results;
+    const health = parseMcpList((await this.deps.run(["mcp", "list"], LIST_TIMEOUT_MS)).stdout, new Set(added.map((r) => r.name)));
+    const learned = new Set(await this.learnedClaudeOnly());
+    for (const result of added) {
+      const server = health.find((h) => h.origin === "local" && h.name === result.name);
+      if (!server || server.health !== "failed" || !CLAUDE_AI_ONLY.test(server.detail)) continue;
+      await this.deps.run(["mcp", "remove", result.name, "--scope", "user"]);
+      const url = candidates.find((c) => c.name === result.connector)?.url;
+      if (url) learned.add(normalize(url));
+      result.ok = false;
+      result.detail = "works only through claude.ai (its sign-in does not accept other apps); removed again";
+    }
+    await writeJsonAtomic(this.learnedFile(), { version: 1, claudeOnly: [...learned].sort() });
     return results;
+  }
+
+  private learnedFile(): string {
+    return join(this.deps.paths.stateDir, "connectors.json");
+  }
+
+  private async learnedClaudeOnly(): Promise<string[]> {
+    return (await readJson(this.learnedFile(), Learned).catch(() => null))?.claudeOnly ?? [];
   }
 
   async add({ name, url, headers }: { name: string; url: string; headers: string[] }): Promise<void> {
