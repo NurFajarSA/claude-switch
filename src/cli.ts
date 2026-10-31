@@ -13,6 +13,8 @@ import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
 import { claudeRunner, ConnectorManager, interactiveClaude } from "./connectors/manager.ts";
 import { RulesStore } from "./core/rules-store.ts";
+import { findUnusedMcpServers } from "./housekeeping/housekeeping.ts";
+import { EventLog } from "./infra/events.ts";
 import { accountDirectory, namesOf, resolveAccount } from "./surfaces/accounts.ts";
 import { doctorCommand } from "./surfaces/doctor.ts";
 import { runHook } from "./surfaces/hook.ts";
@@ -329,6 +331,13 @@ const COMMANDS: Record<string, Command> = {
           }
           return;
         }
+        case "unused": {
+          const { unused } = await findUnusedMcpServers({ engine });
+          if (values.json) return out(JSON.stringify(unused, null, 2));
+          if (unused.length === 0) return out("Every MCP server on this Mac was used in the last 30 days (or was added less than 30 days ago).");
+          for (const s of unused) out(`${s.name.padEnd(24)} last used ${s.lastUsed ?? "never"}`);
+          return;
+        }
         case "import": {
           const results = await connectors.importConnectors({ names: positionals, all: values.all ?? false });
           for (const r of results) out(`${r.ok ? "✓" : "✗"} ${r.connector}${r.name ? ` → ${r.name}` : ""}: ${r.detail}`);
@@ -370,8 +379,19 @@ const COMMANDS: Record<string, Command> = {
           return out(`Signed out of ${name}.`);
         }
         default:
-          throw new UserError(`Unknown action "${action}". Use list, import, add, remove, login or logout.`);
+          throw new UserError(`Unknown action "${action}". Use list, unused, import, add, remove, login or logout.`);
       }
+    },
+  },
+  events: {
+    usage: "cs events [--since <ISO time>] [--json]",
+    summary: "Things claude-switch did on its own (closed idle profiles, cleanup suggestions)",
+    run: async (args) => {
+      const { values } = parseArgs({ args, options: { since: { type: "string" }, json: { type: "boolean" } } });
+      const events = await new EventLog(paths.stateDir).since(values.since ?? null);
+      if (values.json) return out(JSON.stringify(events, null, 2));
+      if (events.length === 0) return out("No events.");
+      for (const e of events) out(`${e.ts}  ${e.title}: ${e.body}`);
     },
   },
   "login-item": {

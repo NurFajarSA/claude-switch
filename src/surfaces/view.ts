@@ -42,10 +42,12 @@ export interface StatusView {
   warnAt: number;
   autoSwitch: boolean;
   pollSeconds: number;
+  idleCloseHours: number;
+  mcpCleanup: boolean;
 }
 
 export function toView(status: Status, now = Date.now()): StatusView {
-  const { threshold, warnAt, autoSwitch, pollSeconds } = status.config;
+  const { threshold, warnAt, autoSwitch, pollSeconds, idleCloseHours, mcpCleanup } = status.config;
   const accounts = status.accounts.map((a) => toRow(a, { threshold, warnAt, now }));
   return {
     active: accounts.find((a) => a.active) ?? null,
@@ -55,6 +57,8 @@ export function toView(status: Status, now = Date.now()): StatusView {
     warnAt,
     autoSwitch,
     pollSeconds,
+    idleCloseHours,
+    mcpCleanup,
   };
 }
 

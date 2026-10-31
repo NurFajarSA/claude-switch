@@ -3,10 +3,11 @@ import type { AccountView, Engine, Status } from "../core/engine.ts";
 import { UserError } from "../core/engine.ts";
 import type { AccountId } from "../domain/account.ts";
 import { type Candidate, decideSwitch, type SwitchDecision, type UsageRecord } from "../domain/usage.ts";
-import { type DesktopWindows, MacDesktopWindows, type WindowAction } from "./process.ts";
+import { type IdleCandidate, idleProfiles } from "../housekeeping/idle.ts";
+import { type DesktopWindows, frontmostPid, MacDesktopWindows, processStartedAt, profilePid, runningProfiles, type WindowAction } from "./process.ts";
 import { MAX_LABEL_LENGTH, ProfileLabels } from "./labels.ts";
 import { type DesktopProfile, discoverProfiles, displayName, resolveProfile } from "./profiles.ts";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { type DesktopSession, findSession, type HandoffResult, handoffSession, listSessions } from "./sessions.ts";
 import { type DesktopUpdateState, installedVersion, readUpdateState, type UpdatePaths, updatePaths, WatchStore, watchTick } from "./updates.ts";
 
@@ -102,6 +103,28 @@ export class DesktopHub {
       await Bun.sleep(2000);
     }
     return null;
+  }
+
+  async closeIdle({ idleHours }: { idleHours: number }): Promise<DesktopProfile[]> {
+    if (idleHours <= 0) return [];
+    const profiles = await this.profiles({ sessionExpiry: false });
+    const running = await runningProfiles();
+    const candidates: IdleCandidate[] = [];
+    for (const profile of profiles) {
+      const pid = profilePid(running, profile);
+      if (pid === undefined) continue;
+      candidates.push({ name: profile.name, pid, startedAt: await processStartedAt(pid), lastActivity: await lastSessionChange(profile) });
+    }
+    if (candidates.length === 0) return [];
+    const names = idleProfiles({ candidates, frontmostPid: await frontmostPid(), idleMs: idleHours * 3_600_000, now: this.now() });
+    const closed: DesktopProfile[] = [];
+    for (const name of names) {
+      const profile = profiles.find((p) => p.name === name);
+      if (!profile) continue;
+      await this.windows.quit(profile);
+      closed.push(profile);
+    }
+    return closed;
   }
 
   async installUpdate(): Promise<UpdateResult> {
@@ -284,6 +307,18 @@ export class DesktopHub {
     if (!profile) throw new UserError(`Unknown Desktop profile "${name}". Known: ${profiles.map(displayName).join(", ")}.`);
     return profile;
   }
+}
+
+async function lastSessionChange(profile: DesktopProfile): Promise<number | null> {
+  let latest: number | null = null;
+  for (const root of profile.sessionRoots) {
+    for (const file of await readdir(root.dir).catch(() => [])) {
+      if (!file.endsWith(".json")) continue;
+      const at = (await stat(join(root.dir, file)).catch(() => null))?.mtimeMs;
+      if (at !== undefined && (latest === null || at > latest)) latest = at;
+    }
+  }
+  return latest;
 }
 
 function desktopUsage(profile: DesktopProfile): UsageRecord | undefined {

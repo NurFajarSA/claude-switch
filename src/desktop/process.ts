@@ -74,7 +74,28 @@ export async function runningProfiles(): Promise<Map<string, number>> {
   return running;
 }
 
-function profilePid(running: Map<string, number>, profile: DesktopProfile): number | undefined {
+export async function processStartedAt(pid: number): Promise<number | null> {
+  const proc = Bun.spawn(["/bin/ps", "-o", "lstart=", "-p", String(pid)], { stdout: "pipe", stderr: "ignore" });
+  const text = (await new Response(proc.stdout).text()).trim();
+  await proc.exited;
+  const at = Date.parse(text);
+  return Number.isNaN(at) ? null : at;
+}
+
+export async function frontmostPid(): Promise<number | null> {
+  const run = async (args: string[]) => {
+    const proc = Bun.spawn(["/usr/bin/lsappinfo", ...args], { stdout: "pipe", stderr: "ignore" });
+    const text = await new Response(proc.stdout).text();
+    await proc.exited;
+    return text.trim();
+  };
+  const asn = await run(["front"]);
+  if (!asn) return null;
+  const pid = (await run(["info", "-only", "pid", asn])).match(/=\s*(\d+)/)?.[1];
+  return pid ? Number(pid) : null;
+}
+
+export function profilePid(running: Map<string, number>, profile: DesktopProfile): number | undefined {
   return running.get(profile.isDefault ? "default" : profile.dir) ?? (profile.isDefault ? running.get(profile.dir) : undefined);
 }
 

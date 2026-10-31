@@ -1,14 +1,17 @@
 import type { Engine } from "../core/engine.ts";
 import type { DesktopHub } from "../desktop/hub.ts";
+import { housekeep } from "../housekeeping/housekeeping.ts";
+import { EventLog } from "../infra/events.ts";
 import type { Logger } from "../infra/log.ts";
 
 const WATCH_SECONDS = 10;
+const HOUSEKEEPING_SECONDS = 300;
 
 const MAX_BACKOFF_SECONDS = 900;
 
 export async function runDaemon({ engine, hub, log, signal }: { engine: Engine; hub: DesktopHub; log: Logger; signal: AbortSignal }): Promise<void> {
   log.info("daemon_started");
-  await Promise.all([pollLoop(engine, log, signal), watchLoop(hub, log, signal)]);
+  await Promise.all([pollLoop(engine, log, signal), watchLoop(hub, log, signal), housekeepingLoop(engine, hub, log, signal)]);
   log.info("daemon_stopped");
 }
 
@@ -21,6 +24,18 @@ async function watchLoop(hub: DesktopHub, log: Logger, signal: AbortSignal): Pro
       log.error("watch_failed", { error: err instanceof Error ? err.message : String(err) });
     }
     await sleep(WATCH_SECONDS * 1000, signal);
+  }
+}
+
+async function housekeepingLoop(engine: Engine, hub: DesktopHub, log: Logger, signal: AbortSignal): Promise<void> {
+  const events = new EventLog(engine.paths.stateDir);
+  while (!signal.aborted) {
+    try {
+      await housekeep({ engine, hub, events, log });
+    } catch (err) {
+      log.error("housekeeping_failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+    await sleep(HOUSEKEEPING_SECONDS * 1000, signal);
   }
 }
 

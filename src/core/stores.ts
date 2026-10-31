@@ -171,6 +171,8 @@ export const ConfigSchema = z.object({
   warnAt: z.number().int().min(1).max(100).default(85),
   pollSeconds: z.number().int().min(30).max(3600).default(300),
   autoSwitch: z.boolean().default(true),
+  idleCloseHours: z.number().int().min(0).max(48).default(3),
+  mcpCleanup: z.boolean().default(true),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 

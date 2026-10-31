@@ -24,7 +24,7 @@ const state = (name: string, accountId: string | null): ProfileState => ({
 describe("toOverviewView", () => {
   test("lists only Desktop profiles that are signed in to an account", () => {
     const overview: Overview = {
-      status: { live: null, liveRegistered: false, accounts: [], config: { threshold: 95, warnAt: 85, pollSeconds: 120, autoSwitch: true } },
+      status: { live: null, liveRegistered: false, accounts: [], config: { threshold: 95, warnAt: 85, pollSeconds: 120, autoSwitch: true, idleCloseHours: 3, mcpCleanup: true } },
       profiles: [state("kantor", "acct-kantor"), state("kosong", null)],
       update: { installed: "1.0", staged: null },
     };
