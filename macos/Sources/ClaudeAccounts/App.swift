@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct ClaudeAccountsApp: App {
     @State private var store = Store()
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         MenuBarExtra {
@@ -18,14 +19,22 @@ struct ClaudeAccountsApp: App {
             .task {
                 await Snapshot.runIfRequested(store: store)
                 store.start()
+                if ProcessInfo.processInfo.environment["CLAUDE_ACCOUNTS_OPEN_SETTINGS"] == "1" { openWindow(id: "settings") }
             }
         }
         .menuBarExtraStyle(.window)
+
+        Window("Claude Accounts", id: "settings") {
+            SettingsView(store: store)
+        }
+        .defaultSize(width: 760, height: 540)
+        .defaultPosition(.center)
     }
 }
 
 struct Panel: View {
     let store: Store
+    @Environment(\.openWindow) private var openWindow
     var scrolls = true
     var expandOthers = false
     @State private var showOthers = false
@@ -68,7 +77,10 @@ struct Panel: View {
             Module {
                 ActionRow(title: "Refresh Usage") { Task { await store.refreshLive() } }
                 ActionRow(title: "Add Account…") { store.addAccount() }
-                ActionRow(title: "Open Log") { store.openLog() }
+                ActionRow(title: "Settings…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "settings")
+                }
                 ActionRow(title: "Quit Claude Accounts") { NSApplication.shared.terminate(nil) }
             }
         }
@@ -112,7 +124,7 @@ struct Panel: View {
             if store.busy { ProgressView().controlSize(.mini) }
             Spacer()
             if let overview = store.overview {
-                Text("Auto-switch").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("Auto-switch at \(overview.threshold)%").font(.system(size: 11)).foregroundStyle(.secondary)
                 Toggle(
                     "Auto-switch",
                     isOn: Binding(get: { overview.autoSwitch }, set: { on in Task { await store.setAutoSwitch(on) } })

@@ -5,12 +5,16 @@ here=${0:A:h}
 out=${1:-$here/../dist}
 app="$out/Claude Accounts.app"
 
-swift build --package-path "$here" -c release
-bin="$(swift build --package-path "$here" -c release --show-bin-path)/ClaudeAccounts"
+sdk=$(xcrun --sdk macosx --show-sdk-version)
+link_sdk=(-Xlinker -platform_version -Xlinker macos -Xlinker 15.0 -Xlinker "$sdk")
+swift build --package-path "$here" -c release "${link_sdk[@]}"
+bin="$(swift build --package-path "$here" -c release "${link_sdk[@]}" --show-bin-path)/ClaudeAccounts"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$bin" "$app/Contents/MacOS/ClaudeAccounts"
+mkdir -p "$app/Contents/Resources"
+cp "$here/icon/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 if [[ -x "$out/cs" ]]; then
   mkdir -p "$app/Contents/Resources"
   cp "$out/cs" "$app/Contents/Resources/cs"
@@ -24,6 +28,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDisplayName</key><string>Claude Accounts</string>
   <key>CFBundleIdentifier</key><string>app.claude-switch.menubar</string>
   <key>CFBundleExecutable</key><string>ClaudeAccounts</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
   <key>CFBundleVersion</key><string>1</string>

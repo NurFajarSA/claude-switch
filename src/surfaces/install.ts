@@ -111,6 +111,24 @@ export async function uninstall({ paths }: { paths: Paths }): Promise<Step[]> {
   return steps;
 }
 
+export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: boolean }): Promise<boolean> {
+  const l = layout(paths);
+  const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
+  if (enabled) {
+    const app = join(l.appDir, "Claude Accounts.app");
+    if (!(await exists(app))) throw new Error(`${app} is not installed`);
+    await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", app], { keepAlive: false, log: paths.logFile });
+  } else {
+    await sh(["/bin/launchctl", "bootout", `gui/${process.getuid?.() ?? 501}/${APP_LABEL}`], { allowFailure: true });
+    await rm(plist, { force: true });
+  }
+  return loginItemEnabled(paths);
+}
+
+export async function loginItemEnabled(paths: Paths): Promise<boolean> {
+  return exists(join(layout(paths).launchAgents, `${APP_LABEL}.plist`));
+}
+
 export function hookCommand(bin: string): string {
   return `"${bin}" hook`;
 }

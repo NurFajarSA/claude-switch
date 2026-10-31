@@ -55,6 +55,7 @@ struct Overview: Decodable {
     let threshold: Int
     let warnAt: Int
     let autoSwitch: Bool
+    let pollSeconds: Int
     let unregisteredActive: String?
     let desktopVersion: String?
     let desktopUpdate: String?
@@ -71,6 +72,11 @@ struct SessionRow: Decodable, Identifiable {
 struct CommandError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
+}
+
+enum AppInfo {
+    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+    static let repository = URL(string: "https://github.com/NurFajarSA/claude-switch")!
 }
 
 enum CS {

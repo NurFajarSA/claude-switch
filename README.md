@@ -20,7 +20,7 @@ More detail, including the invariants that keep refresh tokens valid, is in [doc
 
 ## Install
 
-Requirements: macOS 14+, [Bun](https://bun.sh) 1.3+, Xcode command line tools (Swift 5.10+), Claude Code CLI.
+Requirements: macOS 15+, [Bun](https://bun.sh) 1.3+, Xcode command line tools (Swift 5.10+), Claude Code CLI.
 
 ```bash
 git clone https://github.com/NurFajarSA/claude-switch.git
@@ -63,6 +63,8 @@ Measured on Claude Code 2.1: a CLI login lasts about 28 days from sign-in, and r
 ## Using it
 
 **Menu bar.** Click the gauge for a Control Center style panel. Each Desktop profile and CLI account is a row with its usage. Click a Desktop row to open or show that window; click a CLI row to use that account. Right-click a row to rename it or move a recent session into it. Profiles whose account is not registered with `cs add` sit under "Other Profiles". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
+
+**Settings.** "Settings…" in the menu bar opens a System Settings style window: launch at login, auto-switch on or off with adjustable switch and warning levels (`cs config threshold 90` does the same), how often usage is checked, every CLI account and Desktop profile with its own page (usage, sign-in expiry, rename, sign in again, move a session), and Claude Desktop update status.
 
 To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAPSHOT=/tmp/panel.png "dist/Claude Accounts.app/Contents/MacOS/ClaudeAccounts"` (add `CLAUDE_ACCOUNTS_SNAPSHOT_DARK=1` for dark mode).
 

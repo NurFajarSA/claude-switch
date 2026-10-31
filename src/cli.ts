@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util";
 import { Engine, type LoginResult, UserError } from "./core/engine.ts";
 import type { AccountId } from "./domain/account.ts";
-import { type Config, ConfigSchema } from "./core/stores.ts";
+import { type Config, ConfigSchema, withWarnBelowThreshold } from "./core/stores.ts";
 import { DesktopHub } from "./desktop/hub.ts";
 import { displayName } from "./desktop/profiles.ts";
 import { HandoffError } from "./desktop/sessions.ts";
@@ -11,7 +11,7 @@ import { fileLogger } from "./infra/log.ts";
 import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
 import { runHook } from "./surfaces/hook.ts";
-import { install, uninstall } from "./surfaces/install.ts";
+import { install, loginItemEnabled, setLoginItem, uninstall } from "./surfaces/install.ts";
 import { serveMcp, VERSION } from "./surfaces/mcp.ts";
 import { describeHandoff, describeSwitch } from "./surfaces/messages.ts";
 import { renderProfiles, renderTable, summaryLine, toOverviewView, until } from "./surfaces/view.ts";
@@ -227,8 +227,21 @@ const COMMANDS: Record<string, Command> = {
       const parsedValue: unknown = value === "true" ? true : value === "false" ? false : Number.isNaN(Number(value)) ? value : Number(value);
       const next = ConfigSchema.safeParse({ ...config, [key]: parsedValue });
       if (!next.success) throw new UserError(`Invalid value for ${key}: ${next.error.issues[0]?.message ?? "rejected"}`);
-      await engine.config.save(next.data);
-      out(`${key} = ${String(next.data[key as keyof Config])}`);
+      const saved = withWarnBelowThreshold(next.data, key);
+      await engine.config.save(saved);
+      out(`${key} = ${String(saved[key as keyof Config])}`);
+      if (saved.warnAt !== next.data.warnAt || saved.threshold !== next.data.threshold) {
+        out(`warnAt = ${saved.warnAt}, threshold = ${saved.threshold} (the warning level stays below the switch level)`);
+      }
+    },
+  },
+  "login-item": {
+    usage: "cs login-item [on|off]",
+    summary: "Show or change whether the menu bar app opens at login",
+    run: async ([value]) => {
+      if (value === undefined) return out((await loginItemEnabled(paths)) ? "on" : "off");
+      if (value !== "on" && value !== "off") throw new UserError("Usage: cs login-item [on|off]");
+      out((await setLoginItem({ paths, enabled: value === "on" })) ? "on" : "off");
     },
   },
   poll: {

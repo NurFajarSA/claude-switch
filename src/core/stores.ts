@@ -174,6 +174,15 @@ export const ConfigSchema = z.object({
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
+export function withWarnBelowThreshold(config: Config, changed: string): Config {
+  if (config.warnAt < config.threshold) return config;
+  if (changed === "warnAt") {
+    const threshold = Math.min(100, config.warnAt + 1);
+    return { ...config, threshold, warnAt: Math.min(config.warnAt, threshold - 1) };
+  }
+  return { ...config, warnAt: Math.max(1, config.threshold - 10) };
+}
+
 export class ConfigStore {
   constructor(private readonly paths: Paths) {}
 

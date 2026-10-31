@@ -83,6 +83,29 @@ final class Store {
         await perform(["label", profile.name, "--clear"])
     }
 
+    func setThreshold(_ value: Int) async {
+        await setConfig("threshold", "\(value)")
+    }
+
+    func setLoginItem(_ on: Bool) async {
+        await perform(["login-item", on ? "on" : "off"])
+    }
+
+    func setConfig(_ key: String, _ value: String) async {
+        await perform(["config", key, value])
+    }
+
+    func remove(_ account: AccountRow) async {
+        let confirmed = Dialog.confirm(
+            title: "Remove \(account.alias)?",
+            message: "claude-switch forgets this account and deletes its stored CLI sign-in. Claude Desktop profiles are not touched. You can add it again later.",
+            confirm: "Remove",
+            cancel: "Cancel"
+        )
+        guard confirmed else { return }
+        await perform(["remove", account.alias])
+    }
+
     func setAutoSwitch(_ on: Bool) async {
         await perform(["config", "autoSwitch", on ? "true" : "false"])
     }
@@ -122,9 +145,10 @@ final class Store {
     }
 
 
+    static let dataFolder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/claude-switch")
+
     func openLog() {
-        let log = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/claude-switch/claude-switch.log")
-        NSWorkspace.shared.open(log)
+        NSWorkspace.shared.open(Self.dataFolder.appendingPathComponent("claude-switch.log"))
     }
 
     var headline: String {

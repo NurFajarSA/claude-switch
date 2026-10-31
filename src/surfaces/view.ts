@@ -41,10 +41,11 @@ export interface StatusView {
   threshold: number;
   warnAt: number;
   autoSwitch: boolean;
+  pollSeconds: number;
 }
 
 export function toView(status: Status, now = Date.now()): StatusView {
-  const { threshold, warnAt, autoSwitch } = status.config;
+  const { threshold, warnAt, autoSwitch, pollSeconds } = status.config;
   const accounts = status.accounts.map((a) => toRow(a, { threshold, warnAt, now }));
   return {
     active: accounts.find((a) => a.active) ?? null,
@@ -53,6 +54,7 @@ export function toView(status: Status, now = Date.now()): StatusView {
     threshold,
     warnAt,
     autoSwitch,
+    pollSeconds,
   };
 }
 

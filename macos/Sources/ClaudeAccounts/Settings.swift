@@ -1,0 +1,615 @@
+import AppKit
+import SwiftUI
+
+enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
+    case general, autoSwitch, accounts, profiles, usage, updates, about
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .autoSwitch: "Auto-switch"
+        case .accounts: "CLI Accounts"
+        case .profiles: "Desktop Profiles"
+        case .usage: "Usage"
+        case .updates: "Updates"
+        case .about: "About"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .general: "Start at login, and find the files Claude Accounts keeps on this Mac."
+        case .autoSwitch: "Move to another account before the one in use hits its limit."
+        case .accounts: "Accounts the Claude Code CLI and VS Code can sign in with. One is in use at a time."
+        case .profiles: "Each Claude Desktop profile is its own window, signed in to one account."
+        case .usage: "How often Claude Accounts checks each account’s 5-hour and weekly limits."
+        case .updates: "Keep every Claude Desktop profile open across app updates."
+        case .about: "Usage for every Claude account, session handoff between Desktop profiles, and automatic CLI switching."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape.fill"
+        case .autoSwitch: "arrow.triangle.2.circlepath"
+        case .accounts: "terminal.fill"
+        case .profiles: "macwindow"
+        case .usage: "gauge.with.dots.needle.67percent"
+        case .updates: "arrow.down.circle.fill"
+        case .about: "info.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general: .gray
+        case .autoSwitch: .green
+        case .accounts: .indigo
+        case .profiles: .blue
+        case .usage: .orange
+        case .updates: .teal
+        case .about: .blue
+        }
+    }
+
+    var keywords: [String] {
+        switch self {
+        case .general: ["login", "startup", "log", "files", "folder"]
+        case .autoSwitch: ["threshold", "switch", "limit", "warning", "percent"]
+        case .accounts: ["cli", "vs code", "sign in", "rename", "remove", "account"]
+        case .profiles: ["desktop", "window", "profile", "session", "move"]
+        case .usage: ["poll", "refresh", "interval", "minutes"]
+        case .updates: ["update", "version", "install"]
+        case .about: ["version", "github"]
+        }
+    }
+
+    static let main: [SettingsPane] = [.general, .autoSwitch, .accounts, .profiles, .usage, .updates]
+}
+
+enum SettingsRoute: Hashable {
+    case account(String)
+    case profile(String)
+}
+
+struct SettingsView: View {
+    let store: Store
+    @AppStorage("settingsPane") private var pane: SettingsPane = .general
+    @State private var query = ""
+    @State private var path: [SettingsRoute] = []
+    @State private var back: [SettingsPane] = []
+    @State private var forward: [SettingsPane] = []
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: Binding(get: { pane }, set: { if let next = $0 { select(next) } })) {
+                Section {
+                    ForEach(filtered(SettingsPane.main)) { SidebarRow(pane: $0).tag($0) }
+                }
+                if !filtered([.about]).isEmpty {
+                    Section("Claude Accounts") {
+                        SidebarRow(pane: .about).tag(SettingsPane.about)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .frame(minWidth: 215)
+            .searchable(text: $query, placement: .sidebar)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 230, max: 280)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            NavigationStack(path: $path) {
+                PaneContent(store: store, pane: pane)
+                    .navigationDestination(for: SettingsRoute.self) { route in
+                        switch route {
+                        case let .account(id): AccountDetail(store: store, id: id)
+                        case let .profile(folder): ProfileDetail(store: store, folder: folder)
+                        }
+                    }
+            }
+            .navigationTitle(path.isEmpty ? pane.title : "")
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    ControlGroup {
+                        Button(action: goBack) { Image(systemName: "chevron.left") }
+                            .disabled(path.isEmpty && back.isEmpty)
+                            .help("Back")
+                        Button(action: goForward) { Image(systemName: "chevron.right") }
+                            .disabled(forward.isEmpty)
+                            .help("Forward")
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 780, minHeight: 540)
+        .task { await store.reload() }
+        .onAppear {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        .onDisappear { NSApp.setActivationPolicy(.accessory) }
+    }
+
+    private func filtered(_ panes: [SettingsPane]) -> [SettingsPane] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return panes }
+        return panes.filter { $0.title.lowercased().contains(q) || $0.keywords.contains { $0.contains(q) } }
+    }
+
+    private func select(_ next: SettingsPane) {
+        guard next != pane else { return }
+        back.append(pane)
+        forward.removeAll()
+        path.removeAll()
+        pane = next
+    }
+
+    private func goBack() {
+        if !path.isEmpty {
+            path.removeLast()
+        } else if let previous = back.popLast() {
+            forward.append(pane)
+            pane = previous
+        }
+    }
+
+    private func goForward() {
+        guard let next = forward.popLast() else { return }
+        back.append(pane)
+        path.removeAll()
+        pane = next
+    }
+}
+
+struct SidebarRow: View {
+    let pane: SettingsPane
+
+    var body: some View {
+        Label {
+            Text(pane.title)
+        } icon: {
+            Image(systemName: pane.symbol).foregroundStyle(pane.color)
+        }
+    }
+}
+
+struct AppIconTile: View {
+    let symbol: String
+    let color: Color
+    var size: CGFloat = 20
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.55, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous).fill(color.gradient))
+    }
+}
+
+struct HeroSection: View {
+    let symbol: String
+    let color: Color
+    let title: String
+    let summary: String
+
+    var body: some View {
+        Section {
+            HStack(alignment: .center, spacing: 12) {
+                AppIconTile(symbol: symbol, color: color, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                    Text(summary).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+struct PaneContent: View {
+    let store: Store
+    let pane: SettingsPane
+
+    var body: some View {
+        if pane == .about {
+            AboutPane()
+        } else if let overview = store.overview {
+            Form {
+                HeroSection(symbol: pane.symbol, color: pane.color, title: pane.title, summary: pane.summary)
+                switch pane {
+                case .general: GeneralPane(store: store)
+                case .autoSwitch: AutoSwitchPane(store: store, overview: overview)
+                case .accounts: AccountsPane(store: store, overview: overview)
+                case .profiles: ProfilesPane(store: store, overview: overview)
+                case .usage: UsagePane(store: store, overview: overview)
+                case .updates: UpdatesPane(store: store, overview: overview)
+                case .about: EmptyView()
+                }
+            }
+            .formStyle(.grouped)
+        } else if let message = store.loadError {
+            ContentUnavailableView("Couldn’t load accounts", systemImage: "exclamationmark.triangle", description: Text(message))
+        } else {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+struct GeneralPane: View {
+    let store: Store
+    @State private var launchAtLogin = LoginItem.isEnabled
+
+    var body: some View {
+        Section {
+            Toggle(isOn: Binding(get: { launchAtLogin }, set: { on in
+                launchAtLogin = on
+                Task {
+                    await store.setLoginItem(on)
+                    launchAtLogin = LoginItem.isEnabled
+                }
+            })) {
+                Text("Launch at Login")
+                Text("Show Claude Accounts in the menu bar when you log in.")
+            }
+        }
+        Section("Files") {
+            LabeledContent("Command-line tool", value: CS.binary.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+            LabeledContent("Data folder") {
+                Button("Show in Finder") { NSWorkspace.shared.open(Store.dataFolder) }
+            }
+            LabeledContent("Activity log") {
+                Button("Open") { store.openLog() }
+            }
+        }
+    }
+}
+
+struct AutoSwitchPane: View {
+    let store: Store
+    let overview: Overview
+
+    var body: some View {
+        Section {
+            Toggle(isOn: Binding(get: { overview.autoSwitch }, set: { on in Task { await store.setAutoSwitch(on) } })) {
+                Text("Switch accounts automatically")
+                Text("Claude Desktop sessions move to the account with the most usage left, and the CLI signs in to it.")
+            }
+        }
+        Section {
+            PercentSlider(title: "Switch when usage reaches", value: overview.threshold, range: 50...100) { await store.setConfig("threshold", "\($0)") }
+                .disabled(!overview.autoSwitch)
+            PercentSlider(title: "Show a warning from", value: overview.warnAt, range: 10...99) { await store.setConfig("warnAt", "\($0)") }
+        } header: {
+            Text("Levels")
+        } footer: {
+            Text("The warning level turns the usage bar orange. It always stays below the switch level.")
+        }
+    }
+}
+
+struct PercentSlider: View {
+    let title: String
+    let value: Int
+    let range: ClosedRange<Int>
+    let commit: (Int) async -> Void
+    @State private var draft: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text("\(Int((draft ?? Double(value)).rounded()))%")
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Color.secondary.opacity(0.35)))
+            }
+            Slider(value: Binding(get: { draft ?? Double(value) }, set: { draft = $0 }), in: Double(range.lowerBound)...Double(range.upperBound)) {
+                Text(title)
+            } onEditingChanged: { editing in
+                guard !editing, let final = draft else { return }
+                Task {
+                    await commit(Int(final.rounded()))
+                    draft = nil
+                }
+            }
+            .labelsHidden()
+        }
+    }
+}
+
+struct AccountsPane: View {
+    let store: Store
+    let overview: Overview
+
+    var body: some View {
+        Section {
+            if overview.accounts.isEmpty {
+                Text("No CLI accounts yet").foregroundStyle(.secondary)
+            }
+            ForEach(overview.accounts) { account in
+                NavigationLink(value: SettingsRoute.account(account.id)) {
+                    LabeledContent {
+                        HStack(spacing: 6) {
+                            if account.active { StatusBadge(text: "In Use", color: .accentColor) }
+                            Text(account.percent.map { "\($0)%" } ?? "–").monospacedDigit()
+                        }
+                    } label: {
+                        Text(account.alias)
+                        Text(accountSubtitle(account)).foregroundStyle(account.loginExpiring || !account.healthy ? Color.orange : Color.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text("Accounts")
+        } footer: {
+            Text("Usage shows the higher of the 5-hour and weekly limits.")
+        }
+        Section {
+            Button("Add Account…") { store.addAccount() }
+        }
+    }
+}
+
+func accountSubtitle(_ account: AccountRow) -> String {
+    if !account.healthy { return "Needs sign-in" }
+    if account.loginExpiring, let days = account.loginDaysLeft { return "Sign-in expires in \(days) \(days == 1 ? "day" : "days")" }
+    return "\(account.email) · \(account.plan)"
+}
+
+struct ProfilesPane: View {
+    let store: Store
+    let overview: Overview
+
+    var body: some View {
+        let ready = overview.profiles.filter(\.registered)
+        let others = overview.profiles.filter { !$0.registered }
+        Section("Set up for the CLI") {
+            if ready.isEmpty { Text("None yet").foregroundStyle(.secondary) }
+            ForEach(ready) { ProfileLink(profile: $0) }
+        }
+        if !others.isEmpty {
+            Section {
+                ForEach(others) { ProfileLink(profile: $0) }
+            } header: {
+                Text("Other Profiles")
+            } footer: {
+                Text("These profiles are signed in on Claude Desktop only. Set one up for the CLI to see live usage and include it in auto-switch.")
+            }
+        }
+        Section {
+            Button("Add Account…") { store.addAccount() }
+        }
+    }
+}
+
+struct ProfileLink: View {
+    let profile: ProfileRow
+
+    var body: some View {
+        NavigationLink(value: SettingsRoute.profile(profile.folder)) {
+            LabeledContent {
+                HStack(spacing: 6) {
+                    if profile.running { StatusBadge(text: "Open", color: .green) }
+                    Text(profile.percent.map { "\($0)%" } ?? "–").monospacedDigit()
+                }
+            } label: {
+                Text(profile.label)
+                Text(profileSubtitle(profile)).foregroundStyle(profile.loginExpiring ? Color.orange : Color.secondary)
+            }
+        }
+    }
+}
+
+func profileSubtitle(_ profile: ProfileRow) -> String {
+    if profile.loginExpiring, let days = profile.loginDaysLeft { return "Sign-in expires in \(days) \(days == 1 ? "day" : "days")" }
+    return profile.email ?? profile.accountId.map { "Account \($0.prefix(8))" } ?? "Not signed in"
+}
+
+struct StatusBadge: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.15)))
+    }
+}
+
+struct UsageRows: View {
+    let windows: [WindowRow]
+    let source: String?
+
+    var body: some View {
+        if windows.isEmpty {
+            LabeledContent("Usage", value: "No data yet")
+        }
+        ForEach(windows, id: \.self) { window in
+            LabeledContent {
+                HStack(spacing: 8) {
+                    ProgressView(value: Double(window.percent), total: 100).frame(width: 90)
+                    Text("\(window.percent)%").monospacedDigit().frame(width: 38, alignment: .trailing)
+                }
+            } label: {
+                Text(window.label.prefix(1).uppercased() + window.label.dropFirst())
+                if let reset = window.resetsIn { Text("Resets in \(reset)") }
+            }
+        }
+        if let source { LabeledContent("Source", value: source) }
+    }
+}
+
+struct AccountDetail: View {
+    let store: Store
+    let id: String
+
+    var body: some View {
+        if let account = store.overview?.accounts.first(where: { $0.id == id }) {
+            Form {
+                HeroSection(symbol: "terminal.fill", color: .indigo, title: account.alias, summary: "\(account.email) · \(account.plan)")
+                Section("Usage") {
+                    UsageRows(windows: account.windows, source: account.checkedAgo.map { "Checked \($0)" })
+                }
+                Section("Sign-in") {
+                    LabeledContent("Status", value: account.healthy ? (account.active ? "In use by the CLI and VS Code" : "Ready") : "Needs sign-in")
+                    if let days = account.loginDaysLeft {
+                        LabeledContent("Valid for", value: "\(days) more \(days == 1 ? "day" : "days")")
+                    }
+                    LabeledContent("Renew") {
+                        Button("Sign In Again…") { store.relogin(account) }
+                    }
+                }
+                Section {
+                    if !account.active {
+                        Button("Use for CLI and VS Code") { Task { await store.useForCLI(account) } }
+                    }
+                    Button("Rename…") { Task { await store.rename(account) } }
+                    Button("Remove Account…", role: .destructive) { Task { await store.remove(account) } }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(account.alias)
+        } else {
+            ContentUnavailableView("Account removed", systemImage: "person.crop.circle.badge.xmark")
+        }
+    }
+}
+
+struct ProfileDetail: View {
+    let store: Store
+    let folder: String
+
+    var body: some View {
+        if let profile = store.overview?.profiles.first(where: { $0.folder == folder }) {
+            Form {
+                HeroSection(symbol: "macwindow", color: .blue, title: profile.label, summary: profile.email ?? "Claude Desktop profile \(profile.name)")
+                Section("Usage") {
+                    UsageRows(windows: profile.windows, source: sourceText(profile))
+                }
+                Section("Window") {
+                    LabeledContent("Status", value: profile.running ? "Open" : "Closed")
+                    if let days = profile.loginDaysLeft {
+                        LabeledContent("Sign-in valid for", value: "\(days) more \(days == 1 ? "day" : "days")")
+                    }
+                    LabeledContent(profile.running ? "Bring to front" : "Open window") {
+                        Button(profile.running ? "Show" : "Open") { Task { await store.open(profile) } }
+                    }
+                    Picker("Move a session here", selection: Binding<String>(get: { "" }, set: { id in
+                        guard let session = store.sessions.first(where: { $0.id == id }) else { return }
+                        Task { await store.move(session, to: profile) }
+                    })) {
+                        Text("Choose…").tag("")
+                        ForEach(store.sessions.filter { $0.profile != profile.name }) { session in
+                            Text("\(session.title) — \(session.profileLabel)").tag(session.id)
+                        }
+                    }
+                }
+                Section {
+                    if !profile.registered && profile.accountId != nil {
+                        Button("Set Up for CLI…") { store.linkCLI(profile) }
+                    }
+                    Button("Rename…") { Task { await store.rename(profile) } }
+                    if profile.customLabel {
+                        Button("Use Folder Name (\(profile.name))") { Task { await store.resetName(profile) } }
+                    }
+                } footer: {
+                    Text("Renaming changes only the name shown here. The profile folder stays \(profile.name).")
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(profile.label)
+        } else {
+            ContentUnavailableView("Profile not found", systemImage: "macwindow.badge.plus")
+        }
+    }
+
+    private func sourceText(_ profile: ProfileRow) -> String? {
+        switch profile.usageSource {
+        case "live": "Live, \(profile.usageAge ?? "")"
+        case "desktop": "Recorded by Claude Desktop \(profile.usageAge ?? "")"
+        default: nil
+        }
+    }
+}
+
+struct UsagePane: View {
+    let store: Store
+    let overview: Overview
+    private static let choices = [60, 120, 300, 600, 900]
+
+    var body: some View {
+        Section {
+            Picker("Check usage every", selection: Binding(get: { overview.pollSeconds }, set: { seconds in
+                Task { await store.setConfig("pollSeconds", "\(seconds)") }
+            })) {
+                ForEach(Self.choices, id: \.self) { seconds in
+                    Text(seconds == 60 ? "1 minute" : "\(seconds / 60) minutes").tag(seconds)
+                }
+            }
+            LabeledContent("Check now") {
+                Button("Refresh Usage") { Task { await store.refreshLive() } }
+            }
+        } footer: {
+            Text("Accounts added with Add Account show live numbers. Other Desktop profiles show what Claude Desktop last recorded while their window was open.")
+        }
+    }
+}
+
+struct UpdatesPane: View {
+    let store: Store
+    let overview: Overview
+
+    var body: some View {
+        Section("Claude Desktop") {
+            LabeledContent("Installed version", value: overview.desktopVersion ?? "Not found")
+            if let update = overview.desktopUpdate {
+                LabeledContent("Claude \(update) is downloaded") {
+                    Button("Install and Reopen Profiles") { Task { await store.installDesktopUpdate(update) } }
+                }
+            } else {
+                LabeledContent("Status", value: "Up to date")
+            }
+        }
+        Section {
+            LabeledContent("After an update", value: "Reopen every profile that was open")
+        } footer: {
+            Text("Claude Desktop installs an update only after every window quits, then reopens just the default profile. Claude Accounts reopens the rest.")
+        }
+    }
+}
+
+struct AboutPane: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 96, height: 96)
+            Text("Claude Accounts").font(.title2.weight(.semibold))
+            Text("Version \(AppInfo.version)").foregroundStyle(.secondary)
+            Text("Usage for every Claude account, session handoff between Claude Desktop profiles, and automatic CLI switching. Not affiliated with Anthropic.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 380)
+            Link("View on GitHub", destination: AppInfo.repository)
+        }
+        .padding(30)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+enum LoginItem {
+    static var isEnabled: Bool {
+        FileManager.default.fileExists(
+            atPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents/app.claude-switch.menubar.plist").path
+        )
+    }
+}
