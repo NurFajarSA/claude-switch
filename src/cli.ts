@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
-import { Engine, UserError } from "./core/engine.ts";
+import { Engine, type LoginResult, UserError } from "./core/engine.ts";
+import type { AccountId } from "./domain/account.ts";
 import { type Config, ConfigSchema } from "./core/stores.ts";
 import { DesktopHub } from "./desktop/hub.ts";
 import { displayName } from "./desktop/profiles.ts";
@@ -58,36 +59,52 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   add: {
-    usage: "cs add [alias]",
-    summary: "Log in to another account (browser) and keep the current one",
+    usage: "cs add <name> [--cli-only | --desktop-only]",
+    summary: "Add an account to Claude Desktop and the CLI in one go",
+    run: async (args) => {
+      const { values, positionals } = parseArgs({
+        args,
+        allowPositionals: true,
+        options: { "cli-only": { type: "boolean" }, "desktop-only": { type: "boolean" } },
+      });
+      const [name] = positionals;
+      if (!name) throw new UserError("Usage: cs add <name>   (lowercase letters, digits or dashes)");
+      if (!values["desktop-only"]) await engine.assertAliasAvailable(name);
+
+      let expected: AccountId | undefined;
+      if (!values["cli-only"]) {
+        const profile = await desktopProfileFor(name);
+        expected = profile.accountId ?? undefined;
+        if (values["desktop-only"]) return out(`Desktop profile ${displayName(profile)} is signed in.`);
+      }
+      const result = await cliLogin({ alias: name, expected });
+      reportLogin(result, name);
+    },
+  },
+  link: {
+    usage: "cs link <desktop-profile> [--as alias]",
+    summary: "Sign the CLI in to the account a Desktop profile already uses",
+    run: async (args) => {
+      const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { as: { type: "string" } } });
+      const [query] = positionals;
+      if (!query) throw new UserError("Usage: cs link <desktop-profile>");
+      const profile = await hub.findProfile(query);
+      if (!profile?.accountId) throw new UserError(`Desktop profile "${query}" is not signed in to an account yet. Open it with \`cs open ${query}\` and sign in first.`);
+      const alias = values.as ?? slug(displayName(profile));
+      await engine.assertAliasAvailable(alias);
+      out(`Linking the CLI to the account used by Desktop profile ${displayName(profile)}.`);
+      reportLogin(await cliLogin({ alias, expected: profile.accountId }), alias);
+    },
+  },
+  relogin: {
+    usage: "cs relogin <alias>",
+    summary: "Sign in to a registered CLI account again before its login expires",
     run: async ([alias]) => {
-      if (alias) await engine.assertAliasAvailable(alias);
-      const claude = Bun.which("claude");
-      if (!claude) throw new UserError("The `claude` CLI is not on PATH. Install Claude Code first.");
-      const parked = await engine.parkLiveForLogin();
-      if (parked) {
-        out(`Keeping ${parked.alias} (${parked.email}).`);
-        out(`The browser signs in with whichever claude.ai account it is already using. If that is ${parked.email},`);
-        out("copy the login link below into a private window or another browser profile and sign in with the account to add.\n");
-      }
-      const code = await Bun.spawn([claude, "auth", "login"], { stdio: ["inherit", "inherit", "inherit"] }).exited;
-      const result = await engine.finishLogin({ previous: parked?.id ?? null, alias });
-      switch (result.kind) {
-        case "not_logged_in":
-          throw new UserError("Login did not finish. Nothing changed.");
-        case "same_account":
-          throw new UserError(
-            `The browser signed in as ${result.account.email} again, which is already registered as "${result.account.alias}". Nothing was added. Run \`cs add${alias ? ` ${alias}` : ""}\` again and open the login link in a private window signed in to the other account.`,
-          );
-        case "added":
-          if (code !== 0) throw new UserError("Login did not finish. Nothing changed.");
-          out(`Added ${result.account.alias} (${result.account.email}, ${result.account.plan}). It is now the active CLI account.`);
-          return;
-        default: {
-          const _exhaustive: never = result;
-          return _exhaustive;
-        }
-      }
+      if (!alias) throw new UserError("Usage: cs relogin <alias>");
+      const account = (await engine.status()).accounts.find((a) => a.record.alias === alias || a.record.email === alias)?.record;
+      if (!account) throw new UserError(`Unknown account "${alias}".`);
+      out(`Signing in to ${account.alias} (${account.email}) again.`);
+      reportLogin(await cliLogin({ expected: account.id }), account.alias);
     },
   },
   switch: {
@@ -272,6 +289,72 @@ const COMMANDS: Record<string, Command> = {
     },
   },
 };
+
+async function desktopProfileFor(name: string) {
+  const existing = await hub.findProfile(name);
+  if (existing?.accountId) {
+    out(`Desktop profile ${displayName(existing)} already signs in to an account; using it.`);
+    return existing;
+  }
+  if (existing) {
+    await hub.open(name);
+    out(`Sign in to the account in the Claude window for profile ${displayName(existing)}.`);
+  } else {
+    await hub.createProfile(name);
+    out(`Created Desktop profile ${name}. Sign in to the account in the Claude window that just opened.`);
+  }
+  out("Waiting for that window to finish signing in (up to 15 minutes)…");
+  const profile = await hub.waitForAccount(name, { timeoutMs: 15 * 60_000 });
+  if (!profile) throw new UserError(`No sign-in finished in the ${name} window. Run \`cs add ${name}\` again once you have signed in there.`);
+  out(`Desktop profile ${displayName(profile)} is signed in.`);
+  return profile;
+}
+
+async function cliLogin({ alias, expected }: { alias?: string; expected?: AccountId }): Promise<LoginResult> {
+  const claude = Bun.which("claude");
+  if (!claude) throw new UserError("The `claude` CLI is not on PATH. Install Claude Code first.");
+  const parked = await engine.parkLiveForLogin();
+  out("");
+  out("Now the CLI login. A browser tab opens and signs in with whichever claude.ai account that browser uses.");
+  out(expected ? "Use the same account as the Desktop window. If the browser is on another account," : "If the browser is already signed in to an account you registered,");
+  out("copy the login link below into a private window and sign in there.\n");
+  await Bun.spawn([claude, "auth", "login"], { stdio: ["inherit", "inherit", "inherit"] }).exited;
+  const result = await engine.finishLogin({ previous: parked?.id ?? null, alias, expected });
+  if (parked && result.kind !== "not_logged_in" && result.account.id !== parked.id) {
+    await engine.switchTo(parked.id);
+    out(`The CLI keeps using ${parked.alias}.`);
+  }
+  return result;
+}
+
+function reportLogin(result: LoginResult, name: string): void {
+  switch (result.kind) {
+    case "added":
+      out(`Ready: ${result.account.alias} (${result.account.email}, ${result.account.plan}) works in Claude Desktop and the CLI.`);
+      return;
+    case "renewed":
+      out(`Login for ${result.account.alias} renewed.`);
+      return;
+    case "unexpected_account":
+      throw new UserError(
+        `The browser signed in as ${result.account.email}, which is not the account this step needed. It was kept as "${result.account.alias}". Try again with the login link in a private window signed in to the right account.`,
+      );
+    case "same_account":
+      throw new UserError(
+        `The browser signed in as ${result.account.email} again, which is already "${result.account.alias}". Nothing changed for ${name}. Open the login link in a private window signed in to the other account.`,
+      );
+    case "not_logged_in":
+      throw new UserError("Login did not finish. Nothing changed.");
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
+  }
+}
+
+function slug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "account";
+}
 
 function heading(text: string) {
   return color ? `\x1b[1m${text}\x1b[0m` : text;

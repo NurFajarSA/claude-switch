@@ -43,26 +43,22 @@ bun run install:local
 
 ## First run
 
-Claude Desktop profiles are picked up automatically. Usage for a profile comes from the numbers Claude Desktop records while that window is open.
-
-For live numbers on every account, and for CLI switching, log each account in once:
+Add each account once. One command sets it up for both Claude Desktop and the CLI:
 
 ```bash
 cs register          # the account the CLI is logged in with now
-cs add work          # opens a browser login for another account, keeps the current one
+cs add work          # new Desktop profile "work" opens; sign in there, then approve the CLI login in the browser
 cs add personal
 cs status
 ```
 
-```
-Claude Desktop (● window open)
-● fajar-x    ████████░░  82%  work@example.com (live, 40s ago)
-○ personal   █░░░░░░░░░   9%  me@example.com (live, 40s ago)
+`cs add` creates the Desktop profile and waits for you to sign in to it, then runs the CLI login and checks that both use the same account. The CLI keeps using the account it had before. The browser step signs in with whatever claude.ai account the browser uses, so open the printed link in a private window when it is on a different account.
 
-Claude Code CLI / VS Code login (● active)
-● work       ████████░░  82%  Max 5x         resets in 1h 12m
-  personal   █░░░░░░░░░   9%  Max 5x
-```
+Already have a Desktop profile for an account? `cs link <profile>` adds only the CLI side. The menu bar has the same actions: "Tambah akun…" and, on a profile under "Lainnya", "Hubungkan ke CLI…".
+
+### Logins expire
+
+Measured on Claude Code 2.1: a CLI login lasts about 28 days from sign-in, and refreshing it does not extend that. Desktop profile logins also last about 28 days, and appear to be extended each time the profile is opened. claude-switch shows the days left and warns 5 days ahead; renew a CLI login with `cs relogin <alias>` (or "Login ulang…" in the menu bar), and open a Desktop profile now and then to keep it signed in.
 
 ## Using it
 
@@ -94,7 +90,9 @@ cs open <profile>                     open or focus a Desktop window
 cs new-profile <name>                 create a Desktop profile and open it to sign in
 cs update-desktop                     install a downloaded Claude Desktop update, then reopen every open profile
 cs switch <alias> | --auto            change the CLI login
-cs add [alias] / cs register [alias]  add accounts
+cs add <name> / cs link <profile>     add an account to Desktop and the CLI / link the CLI to a Desktop profile
+cs relogin <alias>                    renew a CLI login before it expires
+cs register [alias]                   register the account the CLI uses now
 cs label <profile> "<name>" | --clear   display name for a Desktop profile (folder unchanged)
 cs rename <alias> <new> / cs remove <alias>
 cs config [key] [value]               threshold (95), warnAt (85), pollSeconds (120), autoSwitch (true)

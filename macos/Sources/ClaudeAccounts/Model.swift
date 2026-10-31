@@ -28,6 +28,8 @@ struct ProfileRow: Decodable, Identifiable {
     let usageSource: String
     let usageAge: String?
     let problem: String?
+    let loginDaysLeft: Int?
+    let loginExpiring: Bool
 }
 
 struct AccountRow: Decodable, Identifiable {
@@ -43,6 +45,8 @@ struct AccountRow: Decodable, Identifiable {
     let windows: [WindowRow]
     let checkedAgo: String?
     let stale: Bool
+    let loginDaysLeft: Int?
+    let loginExpiring: Bool
 }
 
 struct Overview: Decodable {

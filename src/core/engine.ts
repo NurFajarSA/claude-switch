@@ -51,6 +51,7 @@ export interface AccountView {
   record: AccountRecord;
   live: boolean;
   usage: UsageRecord | undefined;
+  loginExpiresAt: number | null;
 }
 
 export interface Status {
@@ -66,7 +67,9 @@ export type SwitchResult =
 
 export type LoginResult =
   | { kind: "added"; account: AccountRecord }
+  | { kind: "renewed"; account: AccountRecord }
   | { kind: "same_account"; account: AccountRecord }
+  | { kind: "unexpected_account"; account: AccountRecord; expected: AccountId }
   | { kind: "not_logged_in" };
 
 export type AutoSwitchResult = { decision: SwitchDecision; result: SwitchResult | null };
@@ -101,7 +104,17 @@ export class Engine {
     const [records, snapshot, config] = await Promise.all([this.registry.list(), this.live.read(), this.config.load()]);
     const live = await this.identify(snapshot);
     const accounts = await Promise.all(
-      records.map(async (record) => ({ record, live: record.id === live?.id, usage: await this.usage.get(record.id) })),
+      records.map(async (record) => {
+        const isLive = record.id === live?.id;
+        const credential = isLive ? snapshot?.oauth : await this.vault.get(record.id).catch(() => null);
+        const expiresAt = credential?.refreshTokenExpiresAt;
+        return {
+          record,
+          live: isLive,
+          usage: await this.usage.get(record.id),
+          loginExpiresAt: typeof expiresAt === "number" ? expiresAt : null,
+        };
+      }),
     );
     return { live, liveRegistered: accounts.some((a) => a.live), accounts, config };
   }
@@ -130,17 +143,29 @@ export class Engine {
     });
   }
 
-  async finishLogin({ previous, alias }: { previous: AccountId | null; alias?: string }): Promise<LoginResult> {
+  async finishLogin({
+    previous,
+    alias,
+    expected,
+  }: {
+    previous: AccountId | null;
+    alias?: string;
+    expected?: AccountId;
+  }): Promise<LoginResult> {
     await removeFile(this.paths.loginPendingFile);
     const snapshot = await this.live.read();
     if (!snapshot?.oauth) {
       await this.reconcile();
       return { kind: "not_logged_in" };
     }
-    const sameAccount = (await this.api.profile(snapshot.oauth.accessToken)).id === previous;
-    const account = await this.register(sameAccount ? undefined : alias);
+    const id = (await this.api.profile(snapshot.oauth.accessToken)).id;
+    const known = (await this.registry.list()).some((r) => r.id === id);
+    const wanted = expected === undefined ? id !== previous : id === expected;
+    const account = await this.register(wanted && !known ? alias : undefined);
     await this.reconcile();
-    return { kind: sameAccount ? "same_account" : "added", account };
+    if (wanted) return { kind: known ? "renewed" : "added", account };
+    if (expected !== undefined && id !== previous) return { kind: "unexpected_account", account, expected };
+    return { kind: "same_account", account };
   }
 
   async assertAliasAvailable(alias: string): Promise<void> {

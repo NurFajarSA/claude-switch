@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { AccountId } from "../src/domain/account.ts";
 import { HOUR, setup, withAccounts } from "./support.ts";
 
 const A = { id: "acct-a", email: "kantor@example.com", percent: 96 };
@@ -251,5 +252,44 @@ describe("rename and remove", () => {
 
     expect(await t.parked(A.id)).toBeNull();
     expect((await t.engine.status()).accounts.map((a) => a.record.alias)).toEqual(["pribadi"]);
+  });
+});
+
+describe("logging in for a specific account", () => {
+  test("renewing a parked account replaces its stored login and keeps its alias", async () => {
+    const t = await withAccounts(A, B);
+    const oldParked = await t.parked(A.id);
+    const parked = await t.engine.parkLiveForLogin();
+    await t.login(A.id);
+
+    const result = await t.engine.finishLogin({ previous: parked?.id ?? null, expected: AccountId("acct-a") });
+    await t.engine.switchTo("pribadi");
+
+    expect(result.kind === "renewed" && result.account.alias).toBe("kantor");
+    expect((await t.parked(A.id)).refreshToken).not.toBe(oldParked.refreshToken);
+    expect((await t.liveBlob()).claudeAiOauth.refreshToken).toStartWith("rt-acct-b");
+  });
+
+  test("a login to a different account than expected is reported and does not take the requested alias", async () => {
+    const t = await withAccounts(A, B);
+    t.api.add(C);
+    const parked = await t.engine.parkLiveForLogin();
+    await t.login(C.id);
+
+    const result = await t.engine.finishLogin({ previous: parked?.id ?? null, alias: "kantor-2", expected: AccountId("acct-a") });
+
+    expect(result.kind).toBe("unexpected_account");
+    expect(result.kind === "unexpected_account" && result.account.alias).toBe("klien");
+  });
+
+  test("status reports when each stored login expires", async () => {
+    const t = await withAccounts(A, B);
+    const live = await t.liveBlob();
+    await t.secrets.set("live", "user", JSON.stringify({ ...live, claudeAiOauth: { ...live.claudeAiOauth, refreshTokenExpiresAt: 111 } }));
+    await t.secrets.set("vault", A.id, JSON.stringify({ ...(await t.parked(A.id)), refreshTokenExpiresAt: 222 }));
+
+    const expiries = Object.fromEntries((await t.newEngine().status()).accounts.map((a) => [a.record.alias, a.loginExpiresAt]));
+
+    expect(expiries).toEqual({ kantor: 222, pribadi: 111 });
   });
 });

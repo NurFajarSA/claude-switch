@@ -13,6 +13,7 @@ const state = (name: string, accountId: string | null): ProfileState => ({
     accountId: accountId ? AccountId(accountId) : null,
     sessionRoots: [],
     usage: null,
+    loginExpiresAt: null,
   } satisfies DesktopProfile,
   running: false,
   account: null,

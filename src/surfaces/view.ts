@@ -24,6 +24,14 @@ export interface AccountRow {
   windows: WindowRow[];
   checkedAgo: string | null;
   stale: boolean;
+  loginDaysLeft: number | null;
+  loginExpiring: boolean;
+}
+
+export const LOGIN_WARN_DAYS = 5;
+
+function daysLeft(expiresAt: number | null, now: number): number | null {
+  return expiresAt === null ? null : Math.max(0, Math.floor((expiresAt - now) / 86_400_000));
 }
 
 export interface StatusView {
@@ -67,6 +75,8 @@ function toRow(account: AccountView, { threshold, warnAt, now }: { threshold: nu
     windows: (reading?.windows ?? []).map((w) => windowRow(w, now)),
     checkedAgo: usage ? ago(Date.parse(usage.checkedAt), now) : null,
     stale: reading !== null && fresh === null,
+    loginDaysLeft: daysLeft(account.loginExpiresAt, now),
+    loginExpiring: account.loginExpiresAt !== null && account.loginExpiresAt - now < LOGIN_WARN_DAYS * 86_400_000,
   };
 }
 
@@ -121,6 +131,7 @@ export function renderTable(view: StatusView, color: boolean): string {
     const extra = a.windows.filter((w) => w !== primary);
     for (const w of extra) lines.push(dim(`  ${"".padEnd(aliasWidth)}  ${w.label}: ${w.percent}%${w.resetsIn ? `, resets in ${w.resetsIn}` : ""}`));
     if (a.problem) lines.push(`  ${"".padEnd(aliasWidth)}  ${paint(a.healthy ? "warn" : "critical", a.problem)}`);
+    else if (a.loginExpiring) lines.push(`  ${"".padEnd(aliasWidth)}  ${paint("warn", `login expires in ${a.loginDaysLeft} day(s); run \`cs relogin ${a.alias}\``)}`);
     else if (a.stale) lines.push(dim(`  ${"".padEnd(aliasWidth)}  last checked ${a.checkedAgo}`));
   }
   if (view.unregisteredActive) lines.push("", paint("warn", `Claude Code is using ${view.unregisteredActive}, which is not registered. Run \`cs register\`.`));
@@ -155,6 +166,8 @@ export interface ProfileRow {
   usageSource: "live" | "desktop" | "none";
   usageAge: string | null;
   problem: string | null;
+  loginDaysLeft: number | null;
+  loginExpiring: boolean;
 }
 
 export interface OverviewView extends StatusView {
@@ -191,6 +204,8 @@ export function toOverviewView(overview: Overview, now = Date.now()): OverviewVi
         usageSource: p.usageSource,
         usageAge: reading ? ago(Date.parse(reading.fetchedAt), now) : null,
         problem: record?.health.kind === "needs_login" ? `needs login: ${record.health.reason}` : null,
+        loginDaysLeft: daysLeft(p.profile.loginExpiresAt, now),
+        loginExpiring: p.profile.loginExpiresAt !== null && p.profile.loginExpiresAt - now < LOGIN_WARN_DAYS * 86_400_000,
       };
     }),
   };
@@ -206,7 +221,8 @@ export function renderProfiles(view: OverviewView, color: boolean): string {
     const usage = p.percent === null ? dim("usage unknown".padEnd(16)) : `${paint(p.severity, bar(p.percent))} ${String(p.percent).padStart(3)}%`;
     const who = p.email ?? (p.accountId ? `account ${p.accountId.slice(0, 8)}` : "not signed in");
     const source = p.usageSource === "desktop" ? dim(` (Desktop, ${p.usageAge})`) : p.usageSource === "live" ? dim(` (live, ${p.usageAge})`) : "";
-    return `${marker} ${p.label.padEnd(width)}  ${usage}  ${who}${source}`;
+    const expiry = p.loginExpiring ? `  ${paint("warn", `login expires in ${p.loginDaysLeft} day(s); open this profile to extend it`)}` : "";
+    return `${marker} ${p.label.padEnd(width)}  ${usage}  ${who}${source}${expiry}`;
   });
   return lines.join("\n");
 }

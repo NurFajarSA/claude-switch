@@ -14,6 +14,7 @@ export interface DesktopProfile {
   accountId: AccountId | null;
   sessionRoots: SessionRoot[];
   usage: DesktopUsageSample | null;
+  loginExpiresAt: number | null;
 }
 
 export interface SessionRoot {
@@ -63,6 +64,7 @@ async function loadProfile(dir: string, labels: Readonly<Record<string, string>>
     accountId: config.lastKnownAccountUuid ? toAccountId(config.lastKnownAccountUuid) : null,
     sessionRoots: await sessionRoots(dir),
     usage: await latestUsage(dir),
+    loginExpiresAt: await sessionCookieExpiry(dir),
   };
 }
 
@@ -84,6 +86,20 @@ async function latestUsage(dir: string): Promise<DesktopUsageSample | null> {
   const last = history?.samples.reduce<(typeof history.samples)[number] | null>((acc, s) => (!acc || s.t > acc.t ? s : acc), null);
   if (!last) return null;
   return { at: new Date(last.t).toISOString(), fiveHourPercent: last.u.fh ?? null, sevenDayPercent: last.u.sd ?? null };
+}
+
+const CHROME_EPOCH_OFFSET_MS = 11_644_473_600_000;
+
+async function sessionCookieExpiry(dir: string): Promise<number | null> {
+  const db = join(dir, "Cookies");
+  if (!(await Bun.file(db).exists())) return null;
+  const proc = Bun.spawn(
+    ["/usr/bin/sqlite3", "-readonly", `file:${db}?immutable=1`, "select max(expires_utc) from cookies where name = 'sessionKey' and host_key like '%claude.ai'"],
+    { stdout: "pipe", stderr: "ignore" },
+  );
+  const [text, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  const micros = Number(text.trim());
+  return code === 0 && micros > 0 ? Math.round(micros / 1000 - CHROME_EPOCH_OFFSET_MS) : null;
 }
 
 export function resolveProfile(profiles: readonly DesktopProfile[], query: string): DesktopProfile | undefined {

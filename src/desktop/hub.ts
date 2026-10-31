@@ -77,8 +77,31 @@ export class DesktopHub {
     const dir = join(this.appSupportDir, `Claude-${name}`);
     if (await stat(dir).then(() => true, () => false)) throw new UserError(`The folder Claude-${name} already exists.`);
     await mkdir(dir, { recursive: true });
-    const profile: DesktopProfile = { name: name as DesktopProfile["name"], label: null, dir, isDefault: false, accountId: null, sessionRoots: [], usage: null };
+    const profile: DesktopProfile = {
+      name: name as DesktopProfile["name"],
+      label: null,
+      dir,
+      isDefault: false,
+      accountId: null,
+      sessionRoots: [],
+      usage: null,
+      loginExpiresAt: null,
+    };
     return { profile, how: await this.windows.open(profile) };
+  }
+
+  async findProfile(query: string): Promise<DesktopProfile | undefined> {
+    return resolveProfile(await this.profiles(), query);
+  }
+
+  async waitForAccount(profileName: string, { timeoutMs, signal }: { timeoutMs: number; signal?: AbortSignal }): Promise<DesktopProfile | null> {
+    const deadline = this.now() + timeoutMs;
+    while (this.now() < deadline && !signal?.aborted) {
+      const profile = resolveProfile(await this.profiles(), profileName);
+      if (profile?.accountId) return profile;
+      await Bun.sleep(2000);
+    }
+    return null;
   }
 
   async installUpdate(): Promise<UpdateResult> {

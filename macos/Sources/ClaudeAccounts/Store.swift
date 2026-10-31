@@ -91,15 +91,23 @@ final class Store {
         await perform(["register"])
     }
 
-    func createProfile() async {
+    func addAccount() {
         guard let value = Dialog.prompt(
-            title: "Profil Claude Desktop baru",
-            message: "Satu profil untuk satu akun. Setelah dibuat, jendela Claude baru terbuka untuk login. Pakai huruf, angka, titik, atau tanda hubung.",
+            title: "Tambah akun Claude",
+            message: "Satu nama untuk profil Desktop dan login CLI-nya. Jendela Claude baru terbuka untuk login, lalu Terminal memandu login CLI dengan akun yang sama. Pakai huruf kecil, angka, atau tanda hubung.",
             initial: ""
         ) else { return }
-        let name = value.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "-")
+        let name = value.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: " ", with: "-")
         guard !name.isEmpty else { return }
-        await perform(["new-profile", name])
+        runInTerminal(["add", name])
+    }
+
+    func relogin(_ account: AccountRow) {
+        runInTerminal(["relogin", account.alias])
+    }
+
+    func linkCLI(_ profile: ProfileRow) {
+        runInTerminal(["link", profile.name])
     }
 
     func installDesktopUpdate(_ version: String) async {
@@ -113,9 +121,6 @@ final class Store {
         await perform(["update-desktop"], report: "Update Claude Desktop")
     }
 
-    func addAccount() {
-        runInTerminal("\"\(CS.binary.path)\" add")
-    }
 
     func openLog() {
         let log = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/claude-switch/claude-switch.log")
@@ -141,9 +146,10 @@ final class Store {
         await reload()
     }
 
-    private func runInTerminal(_ command: String) {
-        let script = FileManager.default.temporaryDirectory.appendingPathComponent("claude-switch-add.command")
-        let body = "#!/bin/zsh -l\n\(command)\necho\necho 'Selesai. Jendela ini boleh ditutup.'\n"
+    private func runInTerminal(_ arguments: [String]) {
+        let script = FileManager.default.temporaryDirectory.appendingPathComponent("claude-switch-\(arguments.first ?? "run").command")
+        let quoted = ([CS.binary.path] + arguments).map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }.joined(separator: " ")
+        let body = "#!/bin/zsh -l\n\(quoted)\necho\necho 'Selesai. Jendela ini boleh ditutup.'\n"
         do {
             try body.write(to: script, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)

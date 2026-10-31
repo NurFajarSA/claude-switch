@@ -63,8 +63,7 @@ struct Panel: View {
             }
             Module {
                 ActionRow(title: "Perbarui usage") { Task { await store.refreshLive() } }
-                ActionRow(title: "Tambah profil Desktop…") { Task { await store.createProfile() } }
-                ActionRow(title: "Tambah akun CLI…") { store.addAccount() }
+                ActionRow(title: "Tambah akun…") { store.addAccount() }
                 ActionRow(title: "Buka log") { store.openLog() }
                 ActionRow(title: "Keluar Claude Accounts") { NSApplication.shared.terminate(nil) }
             }
@@ -206,7 +205,7 @@ struct DesktopProfileRow: View {
         Button {
             Task { await store.open(profile) }
         } label: {
-            Row(icon: "macwindow", highlighted: profile.running, title: profile.label, subtitle: subtitle) {
+            Row(icon: "macwindow", highlighted: profile.running, title: profile.label, subtitle: subtitle, warning: profile.loginExpiring) {
                 UsageMeter(percent: profile.percent, severity: profile.severity)
             }
         }
@@ -221,6 +220,9 @@ struct DesktopProfileRow: View {
                     Button("\(session.title) — \(session.profileLabel)") { Task { await store.move(session, to: profile) } }
                 }
             }
+            if !profile.registered && profile.accountId != nil {
+                Button("Hubungkan ke CLI…") { store.linkCLI(profile) }
+            }
             Divider()
             Button("Ubah nama…") { Task { await store.rename(profile) } }
             if profile.customLabel {
@@ -230,6 +232,9 @@ struct DesktopProfileRow: View {
     }
 
     private var subtitle: String {
+        if profile.loginExpiring, let days = profile.loginDaysLeft {
+            return "Login habis \(days) hari lagi · buka jendelanya untuk memperpanjang"
+        }
         var parts: [String] = []
         if profile.problem != nil { parts.append("perlu login ulang") }
         if profile.usageSource == "desktop", let age = profile.usageAge {
@@ -251,7 +256,7 @@ struct CLIAccountRow: View {
             guard !account.active else { return }
             Task { await store.useForCLI(account) }
         } label: {
-            Row(icon: "terminal", highlighted: account.active, title: account.alias, subtitle: subtitle) {
+            Row(icon: "terminal", highlighted: account.active, title: account.alias, subtitle: subtitle, warning: account.loginExpiring || !account.healthy) {
                 UsageMeter(percent: account.percent, severity: account.severity)
             }
         }
@@ -261,9 +266,11 @@ struct CLIAccountRow: View {
             if !account.active {
                 Button("Pakai untuk CLI dan VS Code") { Task { await store.useForCLI(account) } }
             }
+            Button("Login ulang…") { store.relogin(account) }
             Button("Ubah nama…") { Task { await store.rename(account) } }
             Divider()
             Text(account.email)
+            if let days = account.loginDaysLeft { Text("Login berlaku \(days) hari lagi") }
             ForEach(account.windows, id: \.self) { window in
                 Text("\(window.label): \(window.percent)%" + (window.resetsIn.map { ", reset \($0)" } ?? ""))
             }
@@ -271,7 +278,8 @@ struct CLIAccountRow: View {
     }
 
     private var subtitle: String {
-        if let problem = account.problem, !account.healthy { return problem }
+        if !account.healthy { return "Perlu login ulang · klik kanan → Login ulang…" }
+        if account.loginExpiring, let days = account.loginDaysLeft { return "Login habis \(days) hari lagi · klik kanan → Login ulang…" }
         return "\(account.active ? "Aktif" : "Klik untuk pakai") · \(account.plan)"
     }
 }
@@ -281,6 +289,7 @@ struct Row<Trailing: View>: View {
     let highlighted: Bool
     let title: String
     let subtitle: String
+    var warning = false
     @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
@@ -294,7 +303,11 @@ struct Row<Trailing: View>: View {
             .frame(width: 26, height: 26)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(warning ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
             Spacer(minLength: 8)
             trailing()
@@ -304,8 +317,8 @@ struct Row<Trailing: View>: View {
 }
 
 extension Row where Trailing == EmptyView {
-    init(icon: String, highlighted: Bool, title: String, subtitle: String) {
-        self.init(icon: icon, highlighted: highlighted, title: title, subtitle: subtitle) { EmptyView() }
+    init(icon: String, highlighted: Bool, title: String, subtitle: String, warning: Bool = false) {
+        self.init(icon: icon, highlighted: highlighted, title: title, subtitle: subtitle, warning: warning) { EmptyView() }
     }
 }
 
