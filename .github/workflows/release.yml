@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    # The SDK the app links against decides its look; macOS 26 brings the current design.
+    runs-on: macos-26
     env:
       MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
       MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}

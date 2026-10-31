@@ -27,7 +27,7 @@ fi
 if [[ -n "${DEVELOPER_ID_APP:-}" ]]; then
   echo "Signing with: $DEVELOPER_ID_APP"
 else
-  echo "NOTICE: DEVELOPER_ID_APP is not set. Artifacts stay ad-hoc signed; first launch needs right-click > Open." >&2
+  echo "NOTICE: DEVELOPER_ID_APP is not set. Artifacts stay ad-hoc signed; install with install.sh or clear the quarantine flag." >&2
   if (( ${#notary_args[@]} )); then
     echo "NOTICE: notarization needs a Developer ID signature, so it is skipped." >&2
     notary_args=()

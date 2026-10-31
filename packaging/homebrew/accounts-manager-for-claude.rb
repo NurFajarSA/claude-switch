@@ -20,5 +20,12 @@ cask "accounts-manager-for-claude" do
   app "Accounts Manager for Claude.app"
   binary "#{appdir}/Accounts Manager for Claude.app/Contents/Resources/cs"
 
+  # Releases without a Developer ID are ad-hoc signed. Without this, Gatekeeper blocks the app
+  # and silently kills the bundled cs, so the poller and hooks never run.
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Accounts Manager for Claude.app"]
+  end
+
   zap trash: "~/.config/claude-switch"
 end

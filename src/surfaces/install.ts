@@ -45,6 +45,7 @@ export async function install({ paths, sourceBinary, app }: { paths: Paths; sour
       await copyFile(sourceBinary, l.bin);
     }
     await sh(["/bin/chmod", "755", l.bin]);
+    await unquarantine(l.bin);
     return l.bin;
   });
 
@@ -73,6 +74,7 @@ export async function install({ paths, sourceBinary, app }: { paths: Paths; sour
       const target = join(l.appDir, basename(app));
       for (const name of new Set([basename(app), ...LEGACY_APP_NAMES])) await removeApp(join(l.appDir, name));
       await cp(app, target, { recursive: true });
+      await unquarantine(target);
       const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
       await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", target], { keepAlive: false, log: paths.logFile });
       await reloadAgent(plist, APP_LABEL);
@@ -123,6 +125,12 @@ export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: 
     await rm(plist, { force: true });
   }
   return loginItemEnabled(paths);
+}
+
+// A downloaded build without a Developer ID keeps the quarantine flag through the copy, and
+// Gatekeeper then kills the poller and hooks without a prompt. Running install is the consent.
+async function unquarantine(path: string): Promise<void> {
+  await sh(["/usr/bin/xattr", "-dr", "com.apple.quarantine", path], { allowFailure: true });
 }
 
 async function removeApp(app: string): Promise<void> {

@@ -97,27 +97,27 @@ A Desktop window left open overnight can use more than 1 GB of memory. After 3 h
 
 Requirements: macOS 15 or later on Apple silicon, and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code).
 
+### Install script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NurFajarSA/claude-switch/main/install.sh | sh
+```
+
+The script downloads the latest release, checks it against its published SHA-256, and runs `cs install`, which sets up everything in the table under [From source](#from-source). Set `ACCOUNTS_MANAGER_VERSION=1.0.0` to pick a version. Read [`install.sh`](install.sh) first if you prefer; it is short.
+
 ### From a release
 
-1. Download `AccountsManager-<version>-macos-arm64.zip` from [Releases](https://github.com/NurFajarSA/claude-switch/releases).
-2. Unzip it and move `Accounts Manager for Claude.app` to `/Applications`.
-3. Open the app. The setup assistant installs the background service and walks you through your first account.
+Releases are ad-hoc signed, not notarized: the project has no Apple Developer ID yet. macOS puts a quarantine flag on anything a browser downloads, and for an app without a Developer ID it blocks the app and kills the bundled `cs` without a message. The install script avoids this because `curl` sets no flag. To install a release you downloaded in a browser:
 
-The app bundles the `cs` CLI at `Contents/Resources/cs`. Releases also have a standalone `cs-<version>-macos-arm64.tar.gz`, and each file has a `.sha256` next to it.
-
-To install from the terminal instead of the assistant:
+1. Download `AccountsManager-<version>-macos-arm64.zip` from [Releases](https://github.com/NurFajarSA/claude-switch/releases) and check it with the `.sha256` next to it.
+2. Unzip it, then clear the flag and install:
 
 ```bash
-"/Applications/Accounts Manager for Claude.app/Contents/Resources/cs" install --app "/Applications/Accounts Manager for Claude.app"
+xattr -dr com.apple.quarantine "Accounts Manager for Claude.app"
+"Accounts Manager for Claude.app/Contents/Resources/cs" install --app "Accounts Manager for Claude.app"
 ```
 
-Builds without a Developer ID signature are only ad-hoc signed. The first time, right-click the app and choose **Open**, then **Open** again in the dialog. Or run:
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Accounts Manager for Claude.app"
-```
-
-Releases built with a Developer ID certificate are notarized and open normally.
+`cs install` copies the app to `~/Applications`. If you'd rather approve it by hand, open the app once, then choose **Open Anyway** in System Settings › Privacy & Security; that covers the app but not the `cs` it installs, so the `xattr` step is still needed. Releases also include a standalone `cs-<version>-macos-arm64.tar.gz`.
 
 ### With Homebrew
 
@@ -126,11 +126,11 @@ brew install --cask nurfajarsa/tap/accounts-manager-for-claude
 cs install --app "/Applications/Accounts Manager for Claude.app"
 ```
 
-The cask also links `cs` into your `PATH`. It lives in a separate tap repository, `NurFajarSA/homebrew-tap`, which has to exist before this works. Copy `packaging/homebrew/accounts-manager-for-claude.rb` to `Casks/accounts-manager-for-claude.rb` there. After a release is packaged, `scripts/update-cask.sh <version>` fills in the version and checksum.
+The cask links `cs` into your `PATH` and clears the quarantine flag after installing. It lives in a separate tap repository, `NurFajarSA/homebrew-tap`, which has to exist before this works. Copy `packaging/homebrew/accounts-manager-for-claude.rb` to `Casks/accounts-manager-for-claude.rb` there. After a release is packaged, `scripts/update-cask.sh <version>` fills in the version and checksum.
 
 ### From source
 
-Requirements: [Bun](https://bun.sh) 1.3 or later, and the Xcode command line tools (Swift 5.10 or later).
+Requirements: [Bun](https://bun.sh) 1.3 or later, and Xcode 16 or later (Swift 6).
 
 ```bash
 git clone https://github.com/NurFajarSA/claude-switch.git
@@ -336,7 +336,7 @@ The version lives in `package.json`. It feeds `cs --version`, the MCP server and
 2. Move the `CHANGELOG.md` entries under the new version.
 3. Push a tag `v<version>`.
 
-The `Release` workflow runs the tests, runs `scripts/package-release.sh`, and publishes the zip and tarball with their checksums. Run the script locally to get the same files in `dist/release/`.
+The `Release` workflow runs the tests, runs `scripts/package-release.sh` on a macOS 26 runner (the SDK the app links against decides its look), and publishes the zip and tarball with their checksums. `install.sh` picks up the new release as soon as it is published. Run the script locally to get the same files in `dist/release/`, and test the install script against them with `ACCOUNTS_MANAGER_BASE_URL=file://$PWD/dist/release sh install.sh`.
 
 Signing is optional. Set `DEVELOPER_ID_APP` to a codesign identity to sign with the hardened runtime. To notarize and staple, also set `NOTARY_PROFILE` (a `notarytool` keychain profile), or set `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`. In CI, the secrets `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` enable signing, and the three `APPLE_*` secrets enable notarization. Without them, the release is ad-hoc signed.
 
