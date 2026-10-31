@@ -278,6 +278,28 @@ struct GeneralPane: View {
                 Text("Tell me when the CLI switches accounts, usage reaches the warning level, or a sign-in is about to expire.")
             }
         }
+        if let overview = store.overview, overview.idleCloseHours != nil || overview.mcpCleanup != nil {
+            Section("Housekeeping") {
+                if let hours = overview.idleCloseHours {
+                    Picker(selection: Binding(get: { hours }, set: { value in
+                        Task { await store.setConfig("idleCloseHours", "\(value)") }
+                    })) {
+                        ForEach(Self.idleOptions(including: hours), id: \.self) { Text(Self.idleLabel($0)).tag($0) }
+                    } label: {
+                        Text("Close idle Desktop profiles")
+                        Text("Quits a profile window when none of its sessions changed for this long. Its sessions stay saved; reopen it from the menu bar.")
+                    }
+                }
+                if let cleanup = overview.mcpCleanup {
+                    Toggle(isOn: Binding(get: { cleanup }, set: { on in
+                        Task { await store.setConfig("mcpCleanup", on ? "true" : "false") }
+                    })) {
+                        Text("Suggest removing unused MCP servers")
+                        Text("Once a month, offers to remove MCP servers no session has used in 30 days.")
+                    }
+                }
+            }
+        }
         Section("Setup") {
             LabeledContent("Setup assistant") {
                 Button("Show Setup Assistant…") {
@@ -294,6 +316,21 @@ struct GeneralPane: View {
             LabeledContent("Activity log") {
                 Button("Open") { store.openLog() }
             }
+        }
+    }
+}
+
+extension GeneralPane {
+    static func idleOptions(including current: Int) -> [Int] {
+        let base = [0, 1, 2, 3, 6, 12]
+        return base.contains(current) ? base : (base + [current]).sorted()
+    }
+
+    static func idleLabel(_ hours: Int) -> String {
+        switch hours {
+        case 0: "Off"
+        case 1: "After 1 hour"
+        default: "After \(hours) hours"
         }
     }
 }
@@ -659,6 +696,16 @@ struct ConnectorsPane: View {
         if let report = store.connectors {
             Section {
                 let waiting = report.servers.filter { $0.origin == "local" && $0.health == "needs_auth" }
+                let unused = store.unusedLocalNames
+                if !unused.isEmpty {
+                    LabeledContent {
+                        Button("Remove Unused…") { Task { await store.removeUnusedServers() } }
+                            .disabled(store.busy)
+                    } label: {
+                        Text("\(unused.count) \(unused.count == 1 ? "server" : "servers") unused for 30 days")
+                        Text(unused.joined(separator: ", "))
+                    }
+                }
                 HStack {
                     Button("Add Server…") { Task { await store.addServer() } }
                     if !waiting.isEmpty {
@@ -673,6 +720,9 @@ struct ConnectorsPane: View {
                 ForEach(report.servers.filter { $0.origin != "account" }) { server in
                     LabeledContent {
                         HStack(spacing: 8) {
+                            if store.unusedLocalNames.contains(server.name) {
+                                StatusBadge(text: "Unused 30 Days", color: .orange)
+                            }
                             if store.signingIn.contains(server.name) {
                                 ProgressView().controlSize(.small)
                                 Text("Finish in Terminal").font(.caption).foregroundStyle(.secondary)

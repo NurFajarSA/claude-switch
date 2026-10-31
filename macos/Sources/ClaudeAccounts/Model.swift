@@ -59,6 +59,8 @@ struct Overview: Decodable {
     let unregisteredActive: String?
     let desktopVersion: String?
     let desktopUpdate: String?
+    let idleCloseHours: Int?
+    let mcpCleanup: Bool?
 }
 
 struct SessionRow: Decodable, Identifiable {
@@ -149,6 +151,24 @@ struct ConnectorReport: Decodable {
     let servers: [McpServerRow]
     let connectors: [AccountConnectorRow]
     let checked: Bool
+}
+
+struct UnusedServer: Decodable, Hashable {
+    let name: String
+    let lastUsed: String?
+}
+
+struct EventRow: Decodable {
+    let ts: String
+    let kind: String
+    let title: String
+    let body: String
+    let data: EventData?
+
+    struct EventData: Decodable {
+        let profile: String?
+        let servers: [String]?
+    }
 }
 
 struct RuleAccount: Decodable, Hashable {
