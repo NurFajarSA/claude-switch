@@ -1,6 +1,6 @@
 {
   "name": "claude-switch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Use several Claude accounts on one Mac: live usage for every account, move Claude Desktop sessions between accounts, and switch the Claude Code CLI login automatically.",
   "license": "MIT",
   "private": true,

@@ -110,7 +110,11 @@ export class DesktopHub {
     const profiles = await this.profiles({ sessionExpiry: false });
     const running = await runningProfiles();
     const open = new Set<string>(profiles.filter((p) => profilePid(running, p) !== undefined).map((p) => p.name));
-    return shareVmFiles({ profiles, store: new VmShareStore(this.engine.paths.stateDir), isRunning: (name) => open.has(name), dryRun });
+    const result = await shareVmFiles({ profiles, store: new VmShareStore(this.engine.paths.stateDir), isRunning: (name) => open.has(name), dryRun });
+    // Report profiles by the name the menu bar shows, not the folder name.
+    const labels = new Map<string, string>(profiles.map((p) => [p.name, displayName(p)]));
+    const relabel = <T extends { profile: string }>(entry: T): T => ({ ...entry, profile: labels.get(entry.profile) ?? entry.profile });
+    return { ...result, shared: result.shared.map(relabel), skipped: result.skipped.map(relabel) };
   }
 
   async closeIdle({ idleHours }: { idleHours: number }): Promise<DesktopProfile[]> {

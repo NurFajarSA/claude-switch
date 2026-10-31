@@ -243,8 +243,8 @@ const COMMANDS: Record<string, Command> = {
       const result = await hub.shareVmFiles({ dryRun: values["dry-run"] });
       if (values.json) return out(JSON.stringify(result, null, 2));
       const verb = values["dry-run"] ? "Would share" : "Shared";
-      for (const file of result.shared) out(`${verb} ${file.profile}/${file.rel} (${formatBytes(file.size)})`);
-      for (const file of result.skipped) out(`Skipped ${file.profile}/${file.rel}: ${file.reason}`);
+      for (const file of result.shared) out(`${verb} ${file.rel} in ${file.profile} (${formatBytes(file.size)})`);
+      for (const file of result.skipped) out(`Skipped ${file.rel} in ${file.profile}: ${file.reason}`);
       if (result.shared.length === 0 && result.skipped.length === 0) out("Nothing to share: every identical VM file is already stored once.");
       out(`${values["dry-run"] ? "Would free" : "Freed"} ${formatBytes(result.freedBytes)}. Stored once across profiles: ${formatBytes(result.sharedBytes)}.`);
     },

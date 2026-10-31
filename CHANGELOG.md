@@ -6,13 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-01
+
 ### Added
 
 - Homebrew: `brew install --cask nurfajarsa/tap/accounts-manager-for-claude`. `scripts/update-cask.sh` takes the checksum from the published release and copies the cask into a tap checkout.
 
 ### Fixed
 
-- `cs install --app` leaves an app that is already in `/Applications` or `~/Applications` in place instead of copying it to `~/Applications`, and Launch at Login finds the app in either folder.
+- `cs install --app` leaves an app that is already in `/Applications` or `~/Applications` in place instead of copying it to `~/Applications`, and Launch at Login finds the app in either folder. Before, a Homebrew install ended up with two copies, and after `brew upgrade` the one opened at login was the old copy.
+- `cs share-vm` names profiles as the menu bar does (for example `xplodia`), not by folder (`fajar-x`).
 
 ## [1.0.0] - 2026-11-01
 
@@ -38,5 +41,6 @@ First release.
 - Release packaging: `scripts/package-release.sh` builds a zip of the app and a tarball of `cs`, with optional Developer ID signing and notarization, and a Homebrew cask template.
 - `scripts/screenshots.sh` regenerates the README screenshots from anonymised fixtures in `scripts/demo`.
 
-[Unreleased]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NurFajarSA/claude-switch/releases/tag/v1.0.0
