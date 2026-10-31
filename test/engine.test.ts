@@ -220,7 +220,7 @@ describe("usage polling and auto switch", () => {
 
     const { decision } = await t.engine.autoSwitch({ force: false });
 
-    expect(decision).toEqual({ kind: "exhausted", soonestReset: "2026-10-31T11:30:00Z" });
+    expect(decision).toEqual({ kind: "exhausted", soonestReset: "2026-10-31T11:30:00Z", outside: null });
   });
 
   test("keeps the last reading and reports an error when the live token has expired", async () => {

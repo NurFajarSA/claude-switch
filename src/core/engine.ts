@@ -188,7 +188,15 @@ export class Engine {
     }
   }
 
-  async autoSwitch({ force, poll = true }: { force: boolean; poll?: boolean }): Promise<AutoSwitchResult> {
+  async autoSwitch({
+    force,
+    poll = true,
+    allowed,
+  }: {
+    force: boolean;
+    poll?: boolean;
+    allowed?: ReadonlySet<AccountId>;
+  }): Promise<AutoSwitchResult> {
     if (poll) await this.pollAll();
     const status = await this.status();
     const decision = decideSwitch({
@@ -197,6 +205,7 @@ export class Engine {
       threshold: status.config.threshold,
       now: this.now(),
       force,
+      allowed,
     });
     if (decision.kind !== "switch") return { decision, result: null };
     const result = await this.switchTo(decision.to.id);

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { parseArgs } from "node:util";
 import { Engine, type LoginResult, UserError } from "./core/engine.ts";
 import type { AccountId } from "./domain/account.ts";
@@ -12,6 +12,8 @@ import { fileLogger } from "./infra/log.ts";
 import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
 import { claudeRunner, ConnectorManager, interactiveClaude } from "./connectors/manager.ts";
+import { RulesStore } from "./core/rules-store.ts";
+import { accountDirectory, namesOf, resolveAccount } from "./surfaces/accounts.ts";
 import { doctorCommand } from "./surfaces/doctor.ts";
 import { runHook } from "./surfaces/hook.ts";
 import { install, loginItemEnabled, setLoginItem, uninstall } from "./surfaces/install.ts";
@@ -246,6 +248,57 @@ const COMMANDS: Record<string, Command> = {
       out(`${key} = ${String(saved[key as keyof Config])}`);
       if (saved.warnAt !== next.data.warnAt || saved.threshold !== next.data.threshold) {
         out(`warnAt = ${saved.warnAt}, threshold = ${saved.threshold} (the warning level stays below the switch level)`);
+      }
+    },
+  },
+  rules: {
+    usage: "cs rules [list] [--json] | set <folder> <account…> | allow <folder> <account> | remove <folder>",
+    summary: "Limit which accounts a project folder may switch or move between",
+    run: async (args) => {
+      const [action = "list", ...rest] = args[0]?.startsWith("--") ? ["list", ...args] : args;
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { json: { type: "boolean" } } });
+      const store = new RulesStore(paths.stateDir);
+      const folder = (p: string | undefined) => {
+        if (!p) throw new UserError("Name a project folder.");
+        return resolvePath(p.replace(/^~(?=$|\/)/, paths.home));
+      };
+      const directory = accountDirectory(await hub.overview());
+      switch (action) {
+        case "list": {
+          const rules = await store.list();
+          if (values.json) {
+            return out(
+              JSON.stringify(
+                rules.map((r) => ({ path: r.path, accounts: r.accounts.map((id) => ({ id, names: directory.find((e) => e.id === id)?.names ?? [id.slice(0, 8)] })) })),
+                null,
+                2,
+              ),
+            );
+          }
+          if (rules.length === 0) return out("No project rules. Every project can use every account.");
+          for (const r of rules) out(`${r.path.replace(paths.home, "~")}\n  → ${namesOf(directory, r.accounts)}`);
+          return;
+        }
+        case "set": {
+          const [path, ...accounts] = positionals;
+          if (accounts.length === 0) throw new UserError("Usage: cs rules set <folder> <account…>");
+          const rule = await store.set(folder(path), accounts.map((a) => resolveAccount(directory, a).id));
+          return out(`${rule.path.replace(paths.home, "~")} may use ${namesOf(directory, rule.accounts)}.`);
+        }
+        case "allow": {
+          const [path, account] = positionals;
+          if (!account) throw new UserError("Usage: cs rules allow <folder> <account>");
+          const rule = await store.allow(folder(path), resolveAccount(directory, account).id);
+          if (!rule) throw new UserError("There is no rule for that folder. Create one with `cs rules set`.");
+          return out(`${rule.path.replace(paths.home, "~")} may use ${namesOf(directory, rule.accounts)}.`);
+        }
+        case "remove": {
+          const [path] = positionals;
+          if (!(await store.remove(folder(path)))) throw new UserError("There is no rule for that folder.");
+          return out("Rule removed. That project can use every account again.");
+        }
+        default:
+          throw new UserError(`Unknown action "${action}". Use list, set, allow or remove.`);
       }
     },
   },

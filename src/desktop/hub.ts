@@ -39,7 +39,7 @@ export type TargetWindow = WindowAction | "left_closed" | "needs_reopen";
 export type HandoffOutcome =
   | { kind: "moved"; session: DesktopSession; to: ProfileState; result: HandoffResult; window: TargetWindow }
   | { kind: "stay"; reason: string }
-  | { kind: "exhausted"; soonestReset: string | null };
+  | { kind: "exhausted"; soonestReset: string | null; outside: ProfileState | null };
 
 export interface HubOptions {
   appSupportDir?: string;
@@ -207,12 +207,14 @@ export class DesktopHub {
     force,
     open = true,
     restart = false,
+    allowed,
   }: {
     sessionId: string;
     to?: string;
     force: boolean;
     open?: boolean;
     restart?: boolean;
+    allowed?: ReadonlySet<AccountId>;
   }): Promise<HandoffOutcome> {
     await this.engine.pollAll().catch(() => []);
     const overview = await this.overview();
@@ -230,9 +232,16 @@ export class DesktopHub {
         to,
       );
       target = overview.profiles.find((p) => p.profile === wanted);
+      if (allowed && wanted.accountId && !allowed.has(wanted.accountId)) {
+        throw new UserError(`Profile ${displayName(wanted)} is not allowed for this project. Allow it in Project Rules, or move the session with the project rule ignored.`);
+      }
     } else {
-      const decision = this.decide(overview, source, force);
-      if (decision.kind !== "switch") return decision.kind === "stay" ? decision : { kind: "exhausted", soonestReset: decision.soonestReset };
+      const decision = this.decide(overview, source, force, allowed);
+      if (decision.kind === "stay") return decision;
+      if (decision.kind === "exhausted") {
+        const outside = decision.outside ? overview.profiles.find((p) => p.profile.name === decision.outside?.alias) ?? null : null;
+        return { kind: "exhausted", soonestReset: decision.soonestReset, outside };
+      }
       target = overview.profiles.find((p) => p.profile.name === decision.to.alias);
     }
     if (!target) throw new UserError("Target profile not found.");
@@ -246,7 +255,7 @@ export class DesktopHub {
     return restart ? this.windows.restart(target.profile) : "needs_reopen";
   }
 
-  private decide(overview: Overview, source: ProfileState | undefined, force: boolean): SwitchDecision {
+  private decide(overview: Overview, source: ProfileState | undefined, force: boolean, allowed?: ReadonlySet<AccountId>): SwitchDecision {
     const sourceAccount = source?.profile.accountId ?? null;
     const seen = new Set<AccountId>();
     const pool: { candidate: Candidate; closed: boolean }[] = [];
@@ -260,7 +269,7 @@ export class DesktopHub {
         candidate: { id: p.profile.accountId, alias: p.profile.name, health: p.account?.record.health ?? { kind: "ok" }, usage: p.usage },
       });
     }
-    const input = { live: sourceAccount, threshold: overview.status.config.threshold, now: this.now(), force };
+    const input = { live: sourceAccount, threshold: overview.status.config.threshold, now: this.now(), force, allowed };
     const closedFirst = decideSwitch({ ...input, candidates: pool.filter((p) => p.closed).map((p) => p.candidate) });
     if (closedFirst.kind !== "exhausted") return closedFirst;
     return decideSwitch({ ...input, candidates: pool.map((p) => p.candidate) });

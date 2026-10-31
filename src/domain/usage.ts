@@ -50,7 +50,7 @@ export interface Candidate {
 export type SwitchDecision =
   | { kind: "switch"; to: Candidate; reason: string }
   | { kind: "stay"; reason: string }
-  | { kind: "exhausted"; soonestReset: string | null };
+  | { kind: "exhausted"; soonestReset: string | null; outside: Candidate | null };
 
 export interface DecisionInput {
   live: AccountId | null;
@@ -58,14 +58,17 @@ export interface DecisionInput {
   threshold: number;
   now: number;
   force: boolean;
+  allowed?: ReadonlySet<AccountId>;
 }
 
-export function decideSwitch({ live, candidates, threshold, now, force }: DecisionInput): SwitchDecision {
+export function decideSwitch({ live, candidates, threshold, now, force, allowed }: DecisionInput): SwitchDecision {
   const liveCandidate = candidates.find((c) => c.id === live);
   const liveReading = freshReading(liveCandidate?.usage, now);
   const livePercent = liveReading ? blockingPercent(liveReading) : null;
+  const permitted = (id: AccountId) => !allowed || allowed.has(id);
+  const liveAllowed = live === null || permitted(live);
 
-  if (!force && live !== null && (livePercent === null || livePercent < threshold)) {
+  if (!force && liveAllowed && live !== null && (livePercent === null || livePercent < threshold)) {
     return {
       kind: "stay",
       reason: livePercent === null ? "no fresh usage for the active account" : `active account at ${livePercent}%`,
@@ -81,13 +84,21 @@ export function decideSwitch({ live, candidates, threshold, now, force }: Decisi
     .filter((r) => r.percent === null || r.percent < threshold)
     .sort((a, b) => rank(a.percent) - rank(b.percent));
 
-  const best = ranked[0];
+  const best = ranked.find((r) => permitted(r.c.id));
   if (best) {
-    const from = livePercent === null ? "active account" : `active account at ${livePercent}%`;
+    const from = !liveAllowed
+      ? "active account is not allowed for this project"
+      : livePercent === null
+        ? "active account"
+        : `active account at ${livePercent}%`;
     const to = best.percent === null ? "usage unknown" : `${best.percent}%`;
     return { kind: "switch", to: best.c, reason: `${from}; ${best.c.alias} at ${to}` };
   }
-  return { kind: "exhausted", soonestReset: soonestReset(candidates, now) };
+  return {
+    kind: "exhausted",
+    soonestReset: soonestReset(candidates.filter((c) => permitted(c.id)), now),
+    outside: allowed ? ranked.find((r) => !permitted(r.c.id))?.c ?? null : null,
+  };
 }
 
 function rank(percent: number | null): number {
