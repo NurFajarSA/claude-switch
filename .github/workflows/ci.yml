@@ -16,5 +16,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun test
+        env:
+          CI_NO_KEYCHAIN: "1"
       - run: bun run build
       - run: swift build --package-path macos -c release
