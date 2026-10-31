@@ -99,14 +99,37 @@ struct Panel: View {
 struct DesktopSection: View {
     let store: Store
     let overview: Overview
+    @AppStorage("showOtherProfiles") private var showOthers = false
 
     var body: some View {
+        let registered = overview.profiles.filter(\.registered)
+        let others = overview.profiles.filter { !$0.registered }
         VStack(alignment: .leading, spacing: 8) {
             SectionTitle(title: "Claude Desktop", caption: "satu jendela per akun")
-            ForEach(overview.profiles) { profile in
-                ProfileLine(store: store, profile: profile, movable: store.sessions.filter { $0.profile != profile.name })
+            if registered.isEmpty {
+                Text("Belum ada profil yang akunnya terdaftar. Jalankan `cs add <nama>` di Terminal.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(registered) { line($0) }
+            if !others.isEmpty {
+                DisclosureGroup(isExpanded: $showOthers) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Login di Desktop, belum didaftarkan dengan `cs add`. Angkanya dari catatan Desktop.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ForEach(others) { line($0) }
+                    }
+                    .padding(.top, 6)
+                } label: {
+                    Text("Lainnya (\(others.count))").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
+    }
+
+    private func line(_ profile: ProfileRow) -> some View {
+        ProfileLine(store: store, profile: profile, movable: store.sessions.filter { $0.profile != profile.name })
     }
 }
 
