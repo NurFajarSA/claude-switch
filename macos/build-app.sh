@@ -11,6 +11,10 @@ bin="$(swift build --package-path "$here" -c release --show-bin-path)/ClaudeAcco
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$bin" "$app/Contents/MacOS/ClaudeAccounts"
+if [[ -x "$out/cs" ]]; then
+  mkdir -p "$app/Contents/Resources"
+  cp "$out/cs" "$app/Contents/Resources/cs"
+fi
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

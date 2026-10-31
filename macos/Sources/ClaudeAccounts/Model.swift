@@ -65,7 +65,13 @@ struct CommandError: LocalizedError {
 }
 
 enum CS {
-    static let binary = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/cs")
+    static let binary: URL = {
+        let fm = FileManager.default
+        if let override = ProcessInfo.processInfo.environment["CLAUDE_SWITCH_BIN"] { return URL(fileURLWithPath: override) }
+        let installed = fm.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/cs")
+        if fm.isExecutableFile(atPath: installed.path) { return installed }
+        return Bundle.main.url(forResource: "cs", withExtension: nil) ?? installed
+    }()
 
     static func run(_ arguments: [String]) async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
