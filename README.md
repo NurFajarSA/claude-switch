@@ -66,7 +66,9 @@ Claude Code CLI / VS Code login (● active)
 
 ## Using it
 
-**Menu bar.** Click the gauge for a standard macOS menu. Each Desktop profile and CLI account is an item with a usage bar and a submenu: open the window, move a recent session into it, rename it, and see its limits and reset times. Profiles whose account is not registered with `cs add` sit under "Lainnya". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
+**Menu bar.** Click the gauge for a Control Center style panel. Each Desktop profile and CLI account is a row with its usage. Click a Desktop row to open or show that window; click a CLI row to use that account. Right-click a row to rename it or move a recent session into it. Profiles whose account is not registered with `cs add` sit under "Lainnya". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
+
+To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAPSHOT=/tmp/panel.png "dist/Claude Accounts.app/Contents/MacOS/ClaudeAccounts"` (add `CLAUDE_ACCOUNTS_SNAPSHOT_DARK=1` for dark mode).
 
 **From an agent.** The MCP server gives Claude three tools:
 
