@@ -169,7 +169,7 @@ describe("DesktopHub.handoff", () => {
     const outcome = await hub.handoff({ sessionId: "local_src", force: false, open: false });
 
     expect(outcome.kind).toBe("moved");
-    expect(outcome.kind === "moved" && outcome.to.profile.name).toBe("klien");
+    expect(outcome.kind === "moved" ? String(outcome.to.profile.name) : null).toBe("klien");
   });
 
   test("stays when the session's account is under the threshold", async () => {
