@@ -164,7 +164,7 @@ export function toOverviewView(overview: Overview, now = Date.now()): OverviewVi
   const { threshold, warnAt } = base;
   return {
     ...base,
-    profiles: overview.profiles.map((p) => {
+    profiles: overview.profiles.filter((p) => p.profile.accountId !== null).map((p) => {
       const reading = p.usage?.reading ?? null;
       const percent = reading ? blockingWindow(reading)?.percent ?? 0 : null;
       const record = p.account?.record;
