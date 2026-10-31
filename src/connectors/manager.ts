@@ -47,7 +47,7 @@ export class ConnectorManager {
   }
 
   async importConnectors({ names, all }: { names: string[]; all: boolean }): Promise<ImportResult[]> {
-    const report = await this.report({ check: false });
+    const report = await this.report({ check: true });
     const wanted = names.map((n) => n.toLowerCase());
     const candidates = report.connectors.filter((c) =>
       all ? c.portability === "portable" && !c.localName : wanted.includes(c.name.toLowerCase()) || wanted.includes(c.url),

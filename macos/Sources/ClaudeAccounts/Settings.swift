@@ -711,7 +711,7 @@ struct ConnectorsPane: View {
             } header: {
                 Text("Connectors in your Claude accounts")
             } footer: {
-                Text("After adding, sign in to each one once with Sign In…. Then turn the claude.ai copy off in claude.ai › Settings › Connectors so tools don’t show up twice.")
+                Text("After adding, sign in to each one once with Sign In…. Claude Code hides a claude.ai or plugin copy that points at the same URL, so tools don’t show up twice.")
             }
         } else {
             Section { ProgressView().frame(maxWidth: .infinity) }

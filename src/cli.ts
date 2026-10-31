@@ -252,7 +252,7 @@ const COMMANDS: Record<string, Command> = {
     usage: "cs connectors [list [--check] [--json] | import <name…> | import --all | add <name> <url> [--header 'K: V'] | remove <name>]",
     summary: "Manage MCP servers on this Mac and bring claude.ai connectors to every account",
     run: async (args) => {
-      const [action = "list", ...rest] = args;
+      const [action = "list", ...rest] = args[0]?.startsWith("--") ? ["list", ...args] : args;
       const { values, positionals } = parseArgs({
         args: rest,
         allowPositionals: true,
