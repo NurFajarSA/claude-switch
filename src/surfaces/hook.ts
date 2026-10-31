@@ -64,7 +64,7 @@ export async function runHook({
 
   const cwd = input.cwd ?? process.cwd();
   const rule = ruleFor(await new RulesStore(engine.paths.stateDir).list(), cwd);
-  const directory = rule ? accountDirectory(await hub.overview()) : [];
+  const directory = rule ? accountDirectory(await hub.overview({ light: true })) : [];
   const ctx: Context = { engine, hub, log, event, hitLimit, threshold: config.threshold, rule, project: basename(rule?.path ?? cwd), directory, now };
 
   const desktopSession = env.CLAUDE_CODE_HOST_SESSION_ID;
@@ -76,7 +76,7 @@ export async function runHook({
 
 async function cliHook(ctx: Context): Promise<HookOutput | null> {
   const { engine, rule, hitLimit, threshold } = ctx;
-  const status = await engine.status();
+  const status = await engine.status({ expiry: false });
   const live = status.accounts.find((a) => a.live);
   const outsideRule = rule !== null && live !== undefined && !rule.accounts.includes(live.record.id);
   const reading = freshReading(live?.usage, ctx.now);
@@ -96,7 +96,7 @@ async function cliHook(ctx: Context): Promise<HookOutput | null> {
 
 async function desktopHook(ctx: Context, sessionId: string, accountId: AccountId | null): Promise<HookOutput | null> {
   const { hub, rule, hitLimit, threshold, engine } = ctx;
-  const { profiles } = await hub.overview();
+  const { profiles } = await hub.overview({ light: true });
   const here = profiles.find((p) => p.profile.accountId === accountId);
   const outsideRule = rule !== null && accountId !== null && !rule.accounts.includes(accountId);
 

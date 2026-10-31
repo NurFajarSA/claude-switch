@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { join } from "node:path";
 import {
   type AccountId,
   type AccountRecord,
@@ -28,6 +30,12 @@ import {
 } from "./stores.ts";
 
 const REFRESH_MARGIN_MS = 5 * 60_000;
+const IDENTITY_CACHE_SIZE = 32;
+const POLL_SPACING_MS = 1500;
+
+function tokenKey(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 const LOGIN_WINDOW_MS = 15 * 60_000;
 
 export class UserError extends Error {
@@ -40,6 +48,7 @@ export interface EngineDeps {
   api: AnthropicApi;
   log?: Logger;
   now?: () => number;
+  pollSpacingMs?: number;
 }
 
 export interface LiveIdentity {
@@ -86,11 +95,13 @@ export class Engine {
   private readonly log: Logger;
   private readonly now: () => number;
   private readonly identities = new Map<string, LiveIdentity>();
+  private readonly pollSpacingMs: number;
 
   constructor(deps: EngineDeps) {
     this.paths = deps.paths;
     this.api = deps.api;
     this.log = deps.log ?? silentLogger;
+    this.pollSpacingMs = deps.pollSpacingMs ?? POLL_SPACING_MS;
     this.now = deps.now ?? Date.now;
     this.live = new LiveCredentials(deps.secrets, deps.paths);
     this.claude = new ClaudeConfig(deps.paths);
@@ -100,13 +111,13 @@ export class Engine {
     this.config = new ConfigStore(deps.paths);
   }
 
-  async status(): Promise<Status> {
+  async status({ expiry = true }: { expiry?: boolean } = {}): Promise<Status> {
     const [records, snapshot, config] = await Promise.all([this.registry.list(), this.live.read(), this.config.load()]);
     const live = await this.identify(snapshot);
     const accounts = await Promise.all(
       records.map(async (record) => {
         const isLive = record.id === live?.id;
-        const credential = isLive ? snapshot?.oauth : await this.vault.get(record.id).catch(() => null);
+        const credential = isLive ? snapshot?.oauth : expiry ? await this.vault.get(record.id).catch(() => null) : null;
         const expiresAt = credential?.refreshTokenExpiresAt;
         return {
           record,
@@ -217,11 +228,12 @@ export class Engine {
     await this.reconcile();
     const [records, snapshot] = await Promise.all([this.registry.list(), this.live.read()]);
     const live = await this.identify(snapshot);
-    return Promise.all(
-      records.map((record) =>
-        record.id === live?.id && snapshot?.oauth ? this.pollLive(record.id, snapshot.oauth) : this.pollParked(record),
-      ),
-    );
+    const results: UsageRecord[] = [];
+    for (const [i, record] of records.entries()) {
+      if (i > 0) await Bun.sleep(this.pollSpacingMs);
+      results.push(record.id === live?.id && snapshot?.oauth ? await this.pollLive(record.id, snapshot.oauth) : await this.pollParked(record));
+    }
+    return results;
   }
 
   async reconcile(): Promise<void> {
@@ -352,13 +364,14 @@ export class Engine {
   private async identify(snapshot: LiveSnapshot | null): Promise<LiveIdentity | null> {
     if (!snapshot?.oauth) return null;
     const token = snapshot.oauth.accessToken;
-    const known = this.identities.get(token);
+    const known = this.identities.get(token) ?? (await this.cachedIdentity(token));
     if (known) return known;
     if (snapshot.oauth.expiresAt > this.now()) {
       try {
         const profile = await this.api.profile(token);
         const identity = { id: profile.id, profile };
         this.identities.set(token, identity);
+        await this.rememberIdentity(token, profile.id);
         return identity;
       } catch (err) {
         this.log.warn("identify_profile_failed", { error: describeApiError(err) });
@@ -366,6 +379,25 @@ export class Engine {
     }
     const account = await this.claude.oauthAccount();
     return typeof account?.accountUuid === "string" ? { id: toAccountId(account.accountUuid), profile: null } : null;
+  }
+
+  private identityFile(): string {
+    return join(this.paths.stateDir, "identity-cache.json");
+  }
+
+  private async cachedIdentity(token: string): Promise<LiveIdentity | null> {
+    const cache = await readRawJson(this.identityFile()).catch(() => null);
+    const id = cache?.[tokenKey(token)];
+    if (typeof id !== "string") return null;
+    const identity = { id: toAccountId(id), profile: null };
+    this.identities.set(token, identity);
+    return identity;
+  }
+
+  private async rememberIdentity(token: string, id: AccountId): Promise<void> {
+    const cache = (await readRawJson(this.identityFile()).catch(() => null)) ?? {};
+    const entries = Object.entries({ ...cache, [tokenKey(token)]: id }).slice(-IDENTITY_CACHE_SIZE);
+    await writeJsonAtomic(this.identityFile(), Object.fromEntries(entries)).catch(() => {});
   }
 
   private async upsertLiveFromIdentity(live: LiveIdentity, records: AccountRecord[]): Promise<AccountRecord> {

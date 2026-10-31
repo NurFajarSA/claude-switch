@@ -42,7 +42,7 @@ export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: Desk
         await (async () => {
           const rule = await projectRule();
           if (!rule) return `\nNo project rule for ${projectDir}: every account may be used.`;
-          return `\nProject rule for ${rule.path}: only ${namesOf(accountDirectory(await hub.overview()), rule.accounts)} may be used. Switches and moves stay inside these accounts unless the user agrees to an exception.`;
+          return `\nProject rule for ${rule.path}: only ${namesOf(accountDirectory(await hub.overview({ light: true })), rule.accounts)} may be used. Switches and moves stay inside these accounts unless the user agrees to an exception.`;
         })(),
       ].join("\n");
       return { content: [{ type: "text" as const, text }], structuredContent: { ...view } };
@@ -99,7 +99,7 @@ export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: Desk
         const rule = ignore_project_rule ? null : await projectRule();
         if (account) {
           if (rule) {
-            const target = resolveAccount(accountDirectory(await hub.overview()), account);
+            const target = resolveAccount(accountDirectory(await hub.overview({ light: true })), account);
             if (!rule.accounts.includes(target.id)) {
               throw new UserError(`${account} is not allowed for ${rule.path}. Ask the user whether to use it once (ignore_project_rule) or allow it with allow_account_for_project.`);
             }
@@ -127,7 +127,7 @@ export async function serveMcp({ engine, hub, env }: { engine: Engine; hub: Desk
       guarded(async () => {
         const rule = await projectRule();
         if (!rule) return `No project rule covers ${projectDir}, so every account is already allowed.`;
-        const directory = accountDirectory(await hub.overview());
+        const directory = accountDirectory(await hub.overview({ light: true }));
         const target = resolveAccount(directory, account);
         const updated = await rules.allow(rule.path, target.id);
         return `${rule.path} may now use ${namesOf(directory, updated?.accounts ?? rule.accounts)}.`;

@@ -262,7 +262,7 @@ const COMMANDS: Record<string, Command> = {
         if (!p) throw new UserError("Name a project folder.");
         return resolvePath(p.replace(/^~(?=$|\/)/, paths.home));
       };
-      const directory = accountDirectory(await hub.overview());
+      const directory = accountDirectory(await hub.overview({ light: true }));
       switch (action) {
         case "list": {
           const rules = await store.list();

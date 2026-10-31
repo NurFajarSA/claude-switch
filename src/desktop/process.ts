@@ -2,6 +2,7 @@ import type { DesktopProfile } from "./profiles.ts";
 
 const MAIN_BINARY = "/Applications/Claude.app/Contents/MacOS/Claude";
 const QUIT_TIMEOUT_MS = 20_000;
+const PS_CACHE_MS = 500;
 
 export type WindowAction = "focused" | "launched" | "restarted";
 
@@ -45,8 +46,11 @@ export class MacDesktopWindows implements DesktopWindows {
     }
   }
 
+  private snapshot: { at: number; running: Promise<Map<string, number>> } | null = null;
+
   private async pid(profile: DesktopProfile): Promise<number | undefined> {
-    return profilePid(await runningProfiles(), profile);
+    if (!this.snapshot || Date.now() - this.snapshot.at > PS_CACHE_MS) this.snapshot = { at: Date.now(), running: runningProfiles() };
+    return profilePid(await this.snapshot.running, profile);
   }
 
   private async launch(profile: DesktopProfile): Promise<void> {

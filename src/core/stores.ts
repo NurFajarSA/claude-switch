@@ -169,7 +169,7 @@ export class UsageCache {
 export const ConfigSchema = z.object({
   threshold: z.number().int().min(1).max(100).default(95),
   warnAt: z.number().int().min(1).max(100).default(85),
-  pollSeconds: z.number().int().min(30).max(3600).default(120),
+  pollSeconds: z.number().int().min(30).max(3600).default(300),
   autoSwitch: z.boolean().default(true),
 });
 export type Config = z.infer<typeof ConfigSchema>;

@@ -95,7 +95,7 @@ export async function setup() {
   };
   const secrets = new MemorySecretStore();
   const api = new FakeApi(now);
-  const engine = new Engine({ paths, secrets, api, now });
+  const engine = new Engine({ paths, secrets, api, now, pollSpacingMs: 0 });
 
   const login = async (id: string) => {
     const credential = api.issue(id);
@@ -123,7 +123,7 @@ export async function setup() {
     advance: (ms: number) => {
       clock += ms;
     },
-    newEngine: () => new Engine({ paths, secrets, api, now }),
+    newEngine: () => new Engine({ paths, secrets, api, now, pollSpacingMs: 0 }),
   };
 }
 

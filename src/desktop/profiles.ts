@@ -43,14 +43,18 @@ const UsageHistory = z.object({
 
 const PROFILE_DIR = /^Claude(-[A-Za-z0-9._-]+)?$/;
 
-export async function discoverProfiles(appSupportDir: string, labels: Readonly<Record<string, string>> = {}): Promise<DesktopProfile[]> {
+export async function discoverProfiles(
+  appSupportDir: string,
+  labels: Readonly<Record<string, string>> = {},
+  { sessionExpiry = true }: { sessionExpiry?: boolean } = {},
+): Promise<DesktopProfile[]> {
   const entries = await readdir(appSupportDir, { withFileTypes: true }).catch(() => []);
   const dirs = entries.filter((e) => e.isDirectory() && PROFILE_DIR.test(e.name)).map((e) => join(appSupportDir, e.name));
-  const profiles = await Promise.all(dirs.map((dir) => loadProfile(dir, labels)));
+  const profiles = await Promise.all(dirs.map((dir) => loadProfile(dir, labels, sessionExpiry)));
   return profiles.filter((p): p is DesktopProfile => p !== null).sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name));
 }
 
-async function loadProfile(dir: string, labels: Readonly<Record<string, string>>): Promise<DesktopProfile | null> {
+async function loadProfile(dir: string, labels: Readonly<Record<string, string>>, sessionExpiry: boolean): Promise<DesktopProfile | null> {
   const config = await readJson(join(dir, "config.json"), DesktopConfig).catch(() => null);
   if (!config) return null;
   const folder = basename(dir);
@@ -64,7 +68,7 @@ async function loadProfile(dir: string, labels: Readonly<Record<string, string>>
     accountId: config.lastKnownAccountUuid ? toAccountId(config.lastKnownAccountUuid) : null,
     sessionRoots: await sessionRoots(dir),
     usage: await latestUsage(dir),
-    loginExpiresAt: await sessionCookieExpiry(dir),
+    loginExpiresAt: sessionExpiry ? await sessionCookieExpiry(dir) : null,
   };
 }
 

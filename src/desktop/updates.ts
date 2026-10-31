@@ -28,7 +28,15 @@ export async function readUpdateState(paths: UpdatePaths): Promise<DesktopUpdate
 }
 
 async function bundleVersion(bundle: string): Promise<string | null> {
-  return plistValue(join(bundle, "Contents", "Info.plist"), "CFBundleShortVersionString");
+  const file = join(bundle, "Contents", "Info.plist");
+  const text = await Bun.file(file).text().catch(() => null);
+  if (text === null) return null;
+  const xml = text.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/);
+  return xml ? xml[1]! : plistValue(file, "CFBundleShortVersionString");
+}
+
+export async function installedVersion(paths: UpdatePaths): Promise<string | null> {
+  return bundleVersion(paths.appBundle);
 }
 
 async function plistValue(file: string, key: string): Promise<string | null> {

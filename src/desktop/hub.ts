@@ -8,7 +8,7 @@ import { MAX_LABEL_LENGTH, ProfileLabels } from "./labels.ts";
 import { type DesktopProfile, discoverProfiles, displayName, resolveProfile } from "./profiles.ts";
 import { mkdir, stat } from "node:fs/promises";
 import { type DesktopSession, findSession, type HandoffResult, handoffSession, listSessions } from "./sessions.ts";
-import { type DesktopUpdateState, readUpdateState, type UpdatePaths, updatePaths, WatchStore, watchTick } from "./updates.ts";
+import { type DesktopUpdateState, installedVersion, readUpdateState, type UpdatePaths, updatePaths, WatchStore, watchTick } from "./updates.ts";
 
 export interface ProfileState {
   profile: DesktopProfile;
@@ -131,11 +131,11 @@ export class DesktopHub {
   }
 
   async watch(): Promise<string[]> {
-    const profiles = await this.profiles();
+    const profiles = await this.profiles({ sessionExpiry: false });
     const running = (await Promise.all(profiles.map(async (p) => ((await this.windows.isRunning(p)) ? p.name : null)))).filter(
       (n): n is DesktopProfile["name"] => n !== null,
     );
-    const { installed } = await readUpdateState(this.updates);
+    const installed = await installedVersion(this.updates);
     const tick = watchTick({ previous: await this.watchStore.load(), version: installed, running, now: this.now() });
     await this.watchStore.save(tick.state);
     const reopened: string[] = [];
@@ -163,12 +163,16 @@ export class DesktopHub {
     return { profile, label: clean === profile.name ? null : clean };
   }
 
-  private async profiles(): Promise<DesktopProfile[]> {
-    return discoverProfiles(this.appSupportDir, await this.labels.load());
+  private async profiles(options: { sessionExpiry?: boolean } = {}): Promise<DesktopProfile[]> {
+    return discoverProfiles(this.appSupportDir, await this.labels.load(), options);
   }
 
-  async overview(): Promise<Overview> {
-    const [status, profiles, update] = await Promise.all([this.engine.status(), this.profiles(), readUpdateState(this.updates)]);
+  async overview({ light = false }: { light?: boolean } = {}): Promise<Overview> {
+    const [status, profiles, update] = await Promise.all([
+      this.engine.status({ expiry: !light }),
+      this.profiles({ sessionExpiry: !light }),
+      light ? Promise.resolve({ installed: null, staged: null }) : readUpdateState(this.updates),
+    ]);
     const running = await Promise.all(profiles.map((p) => this.windows.isRunning(p)));
     const byAccount = new Map(status.accounts.map((a) => [a.record.id, a]));
     return {
