@@ -10,7 +10,7 @@ import { MacKeychain } from "./infra/keychain.ts";
 import { fileLogger } from "./infra/log.ts";
 import { resolvePaths } from "./infra/paths.ts";
 import { runDaemon } from "./surfaces/daemon.ts";
-import { claudeRunner, ConnectorManager } from "./connectors/manager.ts";
+import { claudeRunner, ConnectorManager, interactiveClaude } from "./connectors/manager.ts";
 import { doctorCommand } from "./surfaces/doctor.ts";
 import { runHook } from "./surfaces/hook.ts";
 import { install, loginItemEnabled, setLoginItem, uninstall } from "./surfaces/install.ts";
@@ -294,11 +294,20 @@ const COMMANDS: Record<string, Command> = {
           return out(`Removed ${name}.`);
         }
         case "login": {
-          const [name] = positionals;
-          if (!name) throw new UserError("Usage: cs connectors login <name>");
-          out(`Opening the sign-in page for ${name} in your browser…`);
-          await connectors.login(name);
-          return out(`Signed in to ${name}.`);
+          if (positionals.length === 0) throw new UserError("Usage: cs connectors login <name…>");
+          const failed: string[] = [];
+          for (const name of positionals) {
+            out(`\n— ${name}: your browser opens the sign-in page. If it shows a URL to paste, paste it here.`);
+            try {
+              await connectors.login(name, interactiveClaude(Bun.which("claude")));
+              out(`✓ Signed in to ${name}.`);
+            } catch (err) {
+              failed.push(name);
+              out(`✗ ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          if (failed.length > 0) throw new UserError(`Not signed in: ${failed.join(", ")}. Run \`cs connectors login ${failed.join(" ")}\` to try again.`);
+          return;
         }
         case "logout": {
           const [name] = positionals;

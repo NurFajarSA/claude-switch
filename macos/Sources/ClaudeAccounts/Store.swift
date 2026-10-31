@@ -268,34 +268,21 @@ final class Store {
     }
 
     func signIn(_ server: McpServerRow) async {
-        signingIn.insert(server.name)
-        defer { signingIn.remove(server.name) }
-        do {
-            _ = try await CS.run(["connectors", "login", server.name])
-        } catch {
-            Dialog.warn(title: "Sign-in to \(server.name) didn’t finish", message: error.localizedDescription)
-        }
-        await loadConnectors(check: true)
+        await signInToAll([server])
     }
 
     func signInToAll(_ servers: [McpServerRow]) async {
-        for server in servers {
-            signingIn.insert(server.name)
-            do {
-                _ = try await CS.run(["connectors", "login", server.name])
-            } catch {
-                signingIn.remove(server.name)
-                let keepGoing = Dialog.confirm(
-                    title: "Sign-in to \(server.name) didn’t finish",
-                    message: "\(error.localizedDescription)\n\nContinue with the next server?",
-                    confirm: "Continue",
-                    cancel: "Stop"
-                )
-                if !keepGoing { break }
-            }
-            signingIn.remove(server.name)
+        let names = servers.map(\.name)
+        signingIn.formUnion(names)
+        runInTerminal(["connectors", "login"] + names)
+        for _ in 0..<30 {
+            try? await Task.sleep(for: .seconds(20))
+            await loadConnectors(check: true)
+            let waiting = Set(connectors?.servers.filter { $0.health == "needs_auth" }.map(\.name) ?? [])
+            signingIn = signingIn.intersection(waiting)
+            if signingIn.isEmpty { break }
         }
-        await loadConnectors(check: true)
+        signingIn.removeAll()
     }
 
     func signOut(_ server: McpServerRow) async {

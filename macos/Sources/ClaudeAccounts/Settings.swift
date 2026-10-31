@@ -657,7 +657,7 @@ struct ConnectorsPane: View {
                         HStack(spacing: 8) {
                             if store.signingIn.contains(server.name) {
                                 ProgressView().controlSize(.small)
-                                Text("Finish in your browser").font(.caption).foregroundStyle(.secondary)
+                                Text("Finish in Terminal").font(.caption).foregroundStyle(.secondary)
                             } else if server.health == "needs_auth" {
                                 Button("Sign In") { Task { await store.signIn(server) } }
                             } else {

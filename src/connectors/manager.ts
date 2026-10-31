@@ -18,7 +18,6 @@ import {
 } from "./connectors.ts";
 
 const LIST_TIMEOUT_MS = 90_000;
-const LOGIN_TIMEOUT_MS = 5 * 60_000;
 const Learned = z.object({ version: z.literal(1), claudeOnly: z.array(z.string()) });
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -124,9 +123,9 @@ export class ConnectorManager {
     if (code !== 0) throw new UserError((stderr || stdout).trim() || `claude mcp add ${name} failed`);
   }
 
-  async login(name: string): Promise<void> {
-    const { code, stderr, stdout } = await this.deps.run(["mcp", "login", name], LOGIN_TIMEOUT_MS);
-    if (code !== 0) throw new UserError((stderr || stdout).trim() || `Sign-in to ${name} did not finish.`);
+  async login(name: string, interactive: InteractiveRunner): Promise<void> {
+    const code = await interactive(["mcp", "login", name]);
+    if (code !== 0) throw new UserError(`Sign-in to ${name} did not finish.`);
   }
 
   async logout(name: string): Promise<void> {
@@ -151,6 +150,16 @@ export class ConnectorManager {
     const { code, stderr, stdout } = await this.deps.run(["mcp", "add", "--scope", "user", "--transport", "http", name, connector.url]);
     return { connector: connector.name, name, ok: code === 0, detail: code === 0 ? "added; sign in with /mcp" : (stderr || stdout).trim() };
   }
+}
+
+export type InteractiveRunner = (args: string[]) => Promise<number>;
+
+export function interactiveClaude(claudeBinary: string | null): InteractiveRunner {
+  return async (args) => {
+    if (!claudeBinary) throw new UserError("The `claude` CLI is not on PATH. Install Claude Code first.");
+    if (!process.stdin.isTTY) throw new UserError("Signing in needs a terminal. Run this command in Terminal.");
+    return Bun.spawn([claudeBinary, ...args], { stdio: ["inherit", "inherit", "inherit"], cwd: process.env.HOME }).exited;
+  };
 }
 
 export function claudeRunner(claudeBinary: string | null): Runner {
