@@ -102,25 +102,18 @@ struct SettingsView: View {
         } detail: {
             NavigationStack(path: $path) {
                 PaneContent(store: store, pane: pane)
+                    .navigationTitle(pane.title)
+                    .toolbar { navigationButtons }
                     .navigationDestination(for: SettingsRoute.self) { route in
-                        switch route {
-                        case let .account(id): AccountDetail(store: store, id: id)
-                        case let .profile(folder): ProfileDetail(store: store, folder: folder)
+                        Group {
+                            switch route {
+                            case let .account(id): AccountDetail(store: store, id: id)
+                            case let .profile(folder): ProfileDetail(store: store, folder: folder)
+                            }
                         }
+                        .toolbar { navigationButtons }
+                        .navigationBarBackButtonHidden(true)
                     }
-            }
-            .navigationTitle(path.isEmpty ? pane.title : "")
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    ControlGroup {
-                        Button(action: goBack) { Image(systemName: "chevron.left") }
-                            .disabled(path.isEmpty && back.isEmpty)
-                            .help("Back")
-                        Button(action: goForward) { Image(systemName: "chevron.right") }
-                            .disabled(forward.isEmpty)
-                            .help("Forward")
-                    }
-                }
             }
         }
         .frame(minWidth: 780, minHeight: 540)
@@ -130,6 +123,19 @@ struct SettingsView: View {
             NSApp.activate(ignoringOtherApps: true)
         }
         .onDisappear { NSApp.setActivationPolicy(.accessory) }
+    }
+
+    @ToolbarContentBuilder
+    private var navigationButtons: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            ControlGroup {
+                Button(action: goBack) { Label("Back", systemImage: "chevron.left") }
+                    .disabled(path.isEmpty && back.isEmpty)
+                Button(action: goForward) { Label("Forward", systemImage: "chevron.right") }
+                    .disabled(forward.isEmpty)
+            }
+            .controlGroupStyle(.navigation)
+        }
     }
 
     private func filtered(_ panes: [SettingsPane]) -> [SettingsPane] {
