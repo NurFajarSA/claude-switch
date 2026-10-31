@@ -95,6 +95,7 @@ enum CS {
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = binary
+                process.currentDirectoryURL = Store.dataFolder
                 process.arguments = arguments
                 let stdout = Pipe()
                 let stderr = Pipe()

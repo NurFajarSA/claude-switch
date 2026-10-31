@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { UserError } from "../core/engine.ts";
@@ -154,18 +155,20 @@ export class ConnectorManager {
 
 export type InteractiveRunner = (args: string[]) => Promise<number>;
 
-export function interactiveClaude(claudeBinary: string | null): InteractiveRunner {
+export function interactiveClaude(claudeBinary: string | null, workdir: string): InteractiveRunner {
   return async (args) => {
     if (!claudeBinary) throw new UserError("The `claude` CLI is not on PATH. Install Claude Code first.");
     if (!process.stdin.isTTY) throw new UserError("Signing in needs a terminal. Run this command in Terminal.");
-    return Bun.spawn([claudeBinary, ...args], { stdio: ["inherit", "inherit", "inherit"], cwd: process.env.HOME }).exited;
+    await mkdir(workdir, { recursive: true, mode: 0o700 });
+    return Bun.spawn([claudeBinary, ...args], { stdio: ["inherit", "inherit", "inherit"], cwd: workdir }).exited;
   };
 }
 
-export function claudeRunner(claudeBinary: string | null): Runner {
+export function claudeRunner(claudeBinary: string | null, workdir: string): Runner {
   return async (args, timeoutMs = 30_000) => {
     if (!claudeBinary) throw new UserError("The `claude` CLI is not on PATH. Install Claude Code first.");
-    const proc = Bun.spawn([claudeBinary, ...args], { stdout: "pipe", stderr: "pipe", cwd: process.env.HOME });
+    await mkdir(workdir, { recursive: true, mode: 0o700 });
+    const proc = Bun.spawn([claudeBinary, ...args], { stdout: "pipe", stderr: "pipe", cwd: workdir });
     const timer = setTimeout(() => proc.kill(), timeoutMs);
     const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
     clearTimeout(timer);

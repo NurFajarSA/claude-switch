@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { Engine, type LoginResult, UserError } from "./core/engine.ts";
 import type { AccountId } from "./domain/account.ts";
@@ -26,7 +27,7 @@ const color = process.stdout.isTTY && !process.env.NO_COLOR;
 const connectors = new ConnectorManager({
   paths,
   hub,
-  run: claudeRunner(Bun.which("claude")),
+  run: claudeRunner(Bun.which("claude"), join(paths.stateDir, "mcp-workdir")),
   cliAccount: async () => (await engine.status()).accounts.find((a) => a.live)?.record.alias ?? null,
 });
 
@@ -299,7 +300,7 @@ const COMMANDS: Record<string, Command> = {
           for (const name of positionals) {
             out(`\n— ${name}: your browser opens the sign-in page. If it shows a URL to paste, paste it here.`);
             try {
-              await connectors.login(name, interactiveClaude(Bun.which("claude")));
+              await connectors.login(name, interactiveClaude(Bun.which("claude"), join(paths.stateDir, "mcp-workdir")));
               out(`✓ Signed in to ${name}.`);
             } catch (err) {
               failed.push(name);
