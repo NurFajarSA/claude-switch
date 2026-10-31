@@ -66,10 +66,10 @@ struct Panel: View {
             }
             }
             Module {
-                ActionRow(title: "Perbarui usage") { Task { await store.refreshLive() } }
-                ActionRow(title: "Tambah akun…") { store.addAccount() }
-                ActionRow(title: "Buka log") { store.openLog() }
-                ActionRow(title: "Keluar Claude Accounts") { NSApplication.shared.terminate(nil) }
+                ActionRow(title: "Refresh Usage") { Task { await store.refreshLive() } }
+                ActionRow(title: "Add Account…") { store.addAccount() }
+                ActionRow(title: "Open Log") { store.openLog() }
+                ActionRow(title: "Quit Claude Accounts") { NSApplication.shared.terminate(nil) }
             }
         }
         .padding(Self.edge)
@@ -78,7 +78,7 @@ struct Panel: View {
     @ViewBuilder
     private var content: some View {
         if let message = store.loadError {
-            Module { Row(icon: "exclamationmark.triangle.fill", highlighted: false, title: "Tidak bisa memuat data", subtitle: message).padding(6) }
+            Module { Row(icon: "exclamationmark.triangle.fill", highlighted: false, title: "Couldn’t load accounts", subtitle: message).padding(6) }
         }
         if let overview = store.overview {
             if let version = overview.desktopUpdate {
@@ -86,7 +86,7 @@ struct Panel: View {
                     Button {
                         Task { await store.installDesktopUpdate(version) }
                     } label: {
-                        Row(icon: "arrow.down.circle", highlighted: true, title: "Update Claude \(version) siap", subtitle: "Klik untuk pasang dan buka lagi semua profil")
+                        Row(icon: "arrow.down.circle", highlighted: true, title: "Claude \(version) is ready to install", subtitle: "Click to install and reopen every profile")
                     }
                     .buttonStyle(RowButtonStyle())
                 }
@@ -108,19 +108,19 @@ struct Panel: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text("Akun Claude").font(.system(size: 13, weight: .semibold))
+            Text("Claude Accounts").font(.system(size: 13, weight: .semibold))
             if store.busy { ProgressView().controlSize(.mini) }
             Spacer()
             if let overview = store.overview {
-                Text("Pindah otomatis").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("Auto-switch").font(.system(size: 11)).foregroundStyle(.secondary)
                 Toggle(
-                    "Pindah otomatis",
+                    "Auto-switch",
                     isOn: Binding(get: { overview.autoSwitch }, set: { on in Task { await store.setAutoSwitch(on) } })
                 )
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()
-                .help("Pindah ke akun dengan sisa limit terbanyak saat akun aktif mencapai \(overview.threshold)%")
+                .help("Move to the account with the most usage left when the active one reaches \(overview.threshold)%")
             }
         }
         .padding(.horizontal, 6)
@@ -137,7 +137,7 @@ struct Panel: View {
                 Button {
                     withAnimation(.easeOut(duration: 0.15)) { showOthers.toggle() }
                 } label: {
-                    Row(icon: "ellipsis", highlighted: false, title: "Lainnya", subtitle: "\(others.count) profil belum didaftarkan") {
+                    Row(icon: "ellipsis", highlighted: false, title: "Other Profiles", subtitle: "\(others.count) not set up for the CLI") {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -155,17 +155,17 @@ struct Panel: View {
 
     @ViewBuilder
     private func cli(_ overview: Overview) -> some View {
-        Module(title: "Claude Code CLI dan VS Code") {
+        Module(title: "Claude Code CLI and VS Code") {
             if overview.accounts.isEmpty {
                 if let current = overview.unregisteredActive {
                     Button {
                         Task { await store.registerCurrent() }
                     } label: {
-                        Row(icon: "plus", highlighted: false, title: "Daftarkan akun ini", subtitle: current)
+                        Row(icon: "plus", highlighted: false, title: "Register This Account", subtitle: current)
                     }
                     .buttonStyle(RowButtonStyle())
                 } else {
-                    Text("Belum ada akun terdaftar").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
+                    Text("No accounts yet").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
                 }
             }
             ForEach(overview.accounts) { CLIAccountRow(store: store, account: $0) }
@@ -214,39 +214,39 @@ struct DesktopProfileRow: View {
             }
         }
         .buttonStyle(RowButtonStyle())
-        .help(profile.running ? "Jendela terbuka. Klik untuk menampilkannya." : "Klik untuk membuka jendela profil ini.")
+        .help(profile.running ? "Window is open. Click to bring it forward." : "Click to open this profile’s window.")
         .contextMenu {
-            Button(profile.running ? "Tampilkan jendela" : "Buka jendela") { Task { await store.open(profile) } }
-            Menu("Pindahkan sesi ke sini") {
+            Button(profile.running ? "Show Window" : "Open Window") { Task { await store.open(profile) } }
+            Menu("Move Session Here") {
                 let sessions = store.sessions.filter { $0.profile != profile.name }
-                if sessions.isEmpty { Text("Tidak ada sesi di profil lain") }
+                if sessions.isEmpty { Text("No sessions in other profiles") }
                 ForEach(sessions) { session in
                     Button("\(session.title) — \(session.profileLabel)") { Task { await store.move(session, to: profile) } }
                 }
             }
             if !profile.registered && profile.accountId != nil {
-                Button("Hubungkan ke CLI…") { store.linkCLI(profile) }
+                Button("Set Up for CLI…") { store.linkCLI(profile) }
             }
             Divider()
-            Button("Ubah nama…") { Task { await store.rename(profile) } }
+            Button("Rename…") { Task { await store.rename(profile) } }
             if profile.customLabel {
-                Button("Kembalikan nama folder (\(profile.name))") { Task { await store.resetName(profile) } }
+                Button("Use Folder Name (\(profile.name))") { Task { await store.resetName(profile) } }
             }
         }
     }
 
     private var subtitle: String {
         if profile.loginExpiring, let days = profile.loginDaysLeft {
-            return "Login habis \(days) hari lagi · buka jendelanya untuk memperpanjang"
+            return "Sign-in expires in \(days) \(days == 1 ? "day" : "days") · open the window to extend it"
         }
         var parts: [String] = []
-        if profile.problem != nil { parts.append("perlu login ulang") }
+        if profile.problem != nil { parts.append("needs sign-in") }
         if profile.usageSource == "desktop", let age = profile.usageAge {
-            parts.append("data \(age)")
+            parts.append("updated \(age)")
         } else if let reset = profile.windows.first?.resetsIn {
             parts.append("reset \(reset)")
         }
-        parts.append(profile.email ?? profile.accountId.map { "akun \($0.prefix(8))" } ?? "belum login")
+        parts.append(profile.email ?? profile.accountId.map { "account \($0.prefix(8))" } ?? "not signed in")
         return parts.joined(separator: " · ")
     }
 }
@@ -265,16 +265,16 @@ struct CLIAccountRow: View {
             }
         }
         .buttonStyle(RowButtonStyle())
-        .help(account.active ? "Akun yang sedang dipakai CLI dan VS Code" : "Klik untuk memakai akun ini di CLI dan VS Code")
+        .help(account.active ? "The CLI and VS Code use this account" : "Click to use this account in the CLI and VS Code")
         .contextMenu {
             if !account.active {
-                Button("Pakai untuk CLI dan VS Code") { Task { await store.useForCLI(account) } }
+                Button("Use for CLI and VS Code") { Task { await store.useForCLI(account) } }
             }
-            Button("Login ulang…") { store.relogin(account) }
-            Button("Ubah nama…") { Task { await store.rename(account) } }
+            Button("Sign In Again…") { store.relogin(account) }
+            Button("Rename…") { Task { await store.rename(account) } }
             Divider()
             Text(account.email)
-            if let days = account.loginDaysLeft { Text("Login berlaku \(days) hari lagi") }
+            if let days = account.loginDaysLeft { Text("Sign-in valid for \(days) more \(days == 1 ? "day" : "days")") }
             ForEach(account.windows, id: \.self) { window in
                 Text("\(window.label): \(window.percent)%" + (window.resetsIn.map { ", reset \($0)" } ?? ""))
             }
@@ -282,9 +282,9 @@ struct CLIAccountRow: View {
     }
 
     private var subtitle: String {
-        if !account.healthy { return "Perlu login ulang · klik kanan → Login ulang…" }
-        if account.loginExpiring, let days = account.loginDaysLeft { return "Login habis \(days) hari lagi · klik kanan → Login ulang…" }
-        return "\(account.active ? "Aktif" : "Klik untuk pakai") · \(account.plan)"
+        if !account.healthy { return "Needs sign-in · right-click → Sign In Again…" }
+        if account.loginExpiring, let days = account.loginDaysLeft { return "Sign-in expires in \(days) \(days == 1 ? "day" : "days") · right-click → Sign In Again…" }
+        return "\(account.active ? "Active" : "Click to use") · \(account.plan)"
     }
 }
 

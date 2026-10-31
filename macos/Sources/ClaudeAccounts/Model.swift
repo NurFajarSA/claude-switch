@@ -95,7 +95,7 @@ enum CS {
                 do {
                     try process.run()
                 } catch {
-                    continuation.resume(throwing: CommandError(message: "Tidak bisa menjalankan \(binary.path). Jalankan `cs install` dulu."))
+                    continuation.resume(throwing: CommandError(message: "Couldn’t run \(binary.path). Run `cs install` first."))
                     return
                 }
                 let output = stdout.fileHandleForReading.readDataToEndOfFile()

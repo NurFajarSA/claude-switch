@@ -43,14 +43,14 @@ final class Store {
         var arguments = ["handoff", session.id, "--to", profile.name]
         if profile.running {
             let restart = Dialog.confirm(
-                title: "Buka ulang jendela \(profile.label)?",
-                message: "Jendela yang sedang terbuka baru menampilkan sesi pindahan setelah dibuka ulang. Pekerjaan yang sedang berjalan di jendela itu akan terhenti.",
-                confirm: "Buka Ulang",
-                cancel: "Nanti Saja"
+                title: "Reopen the \(profile.label) window?",
+                message: "An open window shows a moved session only after it restarts. Work running in that window will stop.",
+                confirm: "Reopen",
+                cancel: "Not Now"
             )
             if restart { arguments.append("--restart") }
         }
-        await perform(arguments, report: "Sesi dipindahkan")
+        await perform(arguments, report: "Session moved")
     }
 
     func useForCLI(_ account: AccountRow) async {
@@ -59,8 +59,8 @@ final class Store {
 
     func rename(_ account: AccountRow) async {
         guard let value = Dialog.prompt(
-            title: "Ubah nama akun \(account.alias)",
-            message: "Huruf kecil, angka, atau tanda hubung. Dipakai di perintah cs dan di menu ini.",
+            title: "Rename \(account.alias)",
+            message: "Use lowercase letters, digits, or dashes. This name is used in cs commands and in this menu.",
             initial: account.alias
         ) else { return }
         let alias = value.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: " ", with: "-")
@@ -70,8 +70,8 @@ final class Store {
 
     func rename(_ profile: ProfileRow) async {
         guard let value = Dialog.prompt(
-            title: "Ubah nama profil \(profile.label)",
-            message: "Hanya mengubah nama yang tampil di claude-switch. Folder profil \(profile.name) tidak diubah. Kosongkan untuk memakai nama folder.",
+            title: "Rename \(profile.label)",
+            message: "Changes only the name claude-switch shows. The profile folder \(profile.name) keeps its name. Leave it empty to use the folder name.",
             initial: profile.label
         ) else { return }
         let label = value.trimmingCharacters(in: .whitespaces)
@@ -93,8 +93,8 @@ final class Store {
 
     func addAccount() {
         guard let value = Dialog.prompt(
-            title: "Tambah akun Claude",
-            message: "Satu nama untuk profil Desktop dan login CLI-nya. Jendela Claude baru terbuka untuk login, lalu Terminal memandu login CLI dengan akun yang sama. Pakai huruf kecil, angka, atau tanda hubung.",
+            title: "Add a Claude account",
+            message: "One name for the Desktop profile and its CLI sign-in. A new Claude window opens for you to sign in, then Terminal walks you through the CLI sign-in with the same account. Use lowercase letters, digits, or dashes.",
             initial: ""
         ) else { return }
         let name = value.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: " ", with: "-")
@@ -112,10 +112,10 @@ final class Store {
 
     func installDesktopUpdate(_ version: String) async {
         let go = Dialog.confirm(
-            title: "Pasang Claude \(version)?",
-            message: "Semua jendela Claude Desktop akan ditutup supaya update bisa terpasang, lalu dibuka lagi. Pekerjaan yang sedang berjalan di jendela itu akan terhenti.",
-            confirm: "Pasang Update",
-            cancel: "Nanti Saja"
+            title: "Install Claude \(version)?",
+            message: "Every Claude Desktop window quits so the update can install, then opens again. Work running in those windows will stop.",
+            confirm: "Install Update",
+            cancel: "Not Now"
         )
         guard go else { return }
         await perform(["update-desktop"], report: "Update Claude Desktop")
@@ -141,7 +141,7 @@ final class Store {
             let output = String(decoding: try await CS.run(arguments), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             if let title { Dialog.inform(title: title, message: output) }
         } catch {
-            Dialog.warn(title: "Tidak berhasil", message: error.localizedDescription)
+            Dialog.warn(title: "That didn’t work", message: error.localizedDescription)
         }
         await reload()
     }
@@ -149,13 +149,13 @@ final class Store {
     private func runInTerminal(_ arguments: [String]) {
         let script = FileManager.default.temporaryDirectory.appendingPathComponent("claude-switch-\(arguments.first ?? "run").command")
         let quoted = ([CS.binary.path] + arguments).map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }.joined(separator: " ")
-        let body = "#!/bin/zsh -l\n\(quoted)\necho\necho 'Selesai. Jendela ini boleh ditutup.'\n"
+        let body = "#!/bin/zsh -l\n\(quoted)\necho\necho 'Done. You can close this window.'\n"
         do {
             try body.write(to: script, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
             NSWorkspace.shared.open(script)
         } catch {
-            Dialog.warn(title: "Tidak bisa membuka Terminal", message: error.localizedDescription)
+            Dialog.warn(title: "Couldn’t open Terminal", message: error.localizedDescription)
         }
     }
 }
@@ -165,7 +165,7 @@ enum Dialog {
     static func prompt(title: String, message: String, initial: String) -> String? {
         let field = NSTextField(string: initial)
         field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
-        let alert = make(title: title, message: message, buttons: ["Simpan", "Batal"])
+        let alert = make(title: title, message: message, buttons: ["Save", "Cancel"])
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil

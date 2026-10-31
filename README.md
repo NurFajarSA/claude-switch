@@ -54,15 +54,15 @@ cs status
 
 `cs add` creates the Desktop profile and waits for you to sign in to it, then runs the CLI login and checks that both use the same account. The CLI keeps using the account it had before. The browser step signs in with whatever claude.ai account the browser uses, so open the printed link in a private window when it is on a different account.
 
-Already have a Desktop profile for an account? `cs link <profile>` adds only the CLI side. The menu bar has the same actions: "Tambah akun…" and, on a profile under "Lainnya", "Hubungkan ke CLI…".
+Already have a Desktop profile for an account? `cs link <profile>` adds only the CLI side. The menu bar has the same actions: "Add Account…" and, on a profile under "Other Profiles", "Set Up for CLI…".
 
 ### Logins expire
 
-Measured on Claude Code 2.1: a CLI login lasts about 28 days from sign-in, and refreshing it does not extend that. Desktop profile logins also last about 28 days, and appear to be extended each time the profile is opened. claude-switch shows the days left and warns 5 days ahead; renew a CLI login with `cs relogin <alias>` (or "Login ulang…" in the menu bar), and open a Desktop profile now and then to keep it signed in.
+Measured on Claude Code 2.1: a CLI login lasts about 28 days from sign-in, and refreshing it does not extend that. Desktop profile logins also last about 28 days, and appear to be extended each time the profile is opened. claude-switch shows the days left and warns 5 days ahead; renew a CLI login with `cs relogin <alias>` (or "Sign In Again…" in the menu bar), and open a Desktop profile now and then to keep it signed in.
 
 ## Using it
 
-**Menu bar.** Click the gauge for a Control Center style panel. Each Desktop profile and CLI account is a row with its usage. Click a Desktop row to open or show that window; click a CLI row to use that account. Right-click a row to rename it or move a recent session into it. Profiles whose account is not registered with `cs add` sit under "Lainnya". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
+**Menu bar.** Click the gauge for a Control Center style panel. Each Desktop profile and CLI account is a row with its usage. Click a Desktop row to open or show that window; click a CLI row to use that account. Right-click a row to rename it or move a recent session into it. Profiles whose account is not registered with `cs add` sit under "Other Profiles". Renaming a Desktop profile only changes how claude-switch shows it; the profile folder keeps its name.
 
 To check the panel without opening it, render it to a PNG: `CLAUDE_ACCOUNTS_SNAPSHOT=/tmp/panel.png "dist/Claude Accounts.app/Contents/MacOS/ClaudeAccounts"` (add `CLAUDE_ACCOUNTS_SNAPSHOT_DARK=1` for dark mode).
 
