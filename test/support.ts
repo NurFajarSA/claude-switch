@@ -128,11 +128,15 @@ export async function setup() {
 export async function withAccounts(...accounts: FakeAccount[]) {
   const t = await setup();
   for (const a of accounts) t.api.add(a);
-  for (const a of accounts) {
+  for (const [i, a] of accounts.entries()) {
+    if (i === 0) {
+      await t.login(a.id);
+      await t.newEngine().register();
+      continue;
+    }
+    const parked = await t.newEngine().parkLiveForLogin();
     await t.login(a.id);
-    await t.newEngine().parkLiveForLogin();
+    await t.newEngine().finishLogin({ previous: parked?.id ?? null });
   }
-  const last = accounts[accounts.length - 1];
-  if (last) await t.newEngine().finishLogin();
   return t;
 }

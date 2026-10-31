@@ -39,12 +39,47 @@ describe("adding accounts through login", () => {
     const t = await setup();
     t.api.add(A);
     await t.login(A.id);
-    await t.engine.parkLiveForLogin();
+    const parked = await t.engine.parkLiveForLogin();
 
-    await t.engine.finishLogin();
+    const result = await t.engine.finishLogin({ previous: parked?.id ?? null });
 
+    expect(result.kind).toBe("same_account");
     expect((await t.engine.status()).live?.id as string | undefined).toBe("acct-a");
     expect(await t.parked(A.id)).toBeNull();
+  });
+
+  test("signing in with the same account again keeps its alias instead of taking the new one", async () => {
+    const t = await setup();
+    t.api.add(A);
+    await t.login(A.id);
+    await t.engine.register();
+    const parked = await t.engine.parkLiveForLogin();
+    await t.login(A.id);
+
+    const result = await t.engine.finishLogin({ previous: parked?.id ?? null, alias: "xplora" });
+
+    expect(result.kind === "same_account" && result.account.alias).toBe("kantor");
+    expect((await t.engine.status()).accounts.map((a) => a.record.alias)).toEqual(["kantor"]);
+  });
+
+  test("a new account gets the requested alias", async () => {
+    const t = await setup();
+    t.api.add(A);
+    t.api.add(B);
+    await t.login(A.id);
+    await t.engine.register();
+    const parked = await t.engine.parkLiveForLogin();
+    await t.login(B.id);
+
+    const result = await t.engine.finishLogin({ previous: parked?.id ?? null, alias: "xplora" });
+
+    expect(result.kind === "added" && result.account.alias).toBe("xplora");
+    expect((await t.parked(A.id)).refreshToken).toStartWith("rt-acct-a");
+  });
+
+  test("rejects a taken alias before any login starts", async () => {
+    const t = await withAccounts(A, B);
+    await expect(t.engine.assertAliasAvailable("kantor")).rejects.toThrow("taken");
   });
 
   test("reconcile leaves the parked copy alone while a login is in progress", async () => {

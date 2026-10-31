@@ -64,6 +64,11 @@ export type SwitchResult =
   | { kind: "already"; account: AccountRecord }
   | { kind: "switched"; from: AccountRecord | null; to: AccountRecord };
 
+export type LoginResult =
+  | { kind: "added"; account: AccountRecord }
+  | { kind: "same_account"; account: AccountRecord }
+  | { kind: "not_logged_in" };
+
 export type AutoSwitchResult = { decision: SwitchDecision; result: SwitchResult | null };
 
 export class Engine {
@@ -125,12 +130,22 @@ export class Engine {
     });
   }
 
-  async finishLogin(alias?: string): Promise<AccountRecord | null> {
+  async finishLogin({ previous, alias }: { previous: AccountId | null; alias?: string }): Promise<LoginResult> {
     await removeFile(this.paths.loginPendingFile);
     const snapshot = await this.live.read();
-    const record = snapshot?.oauth ? await this.register(alias) : null;
+    if (!snapshot?.oauth) {
+      await this.reconcile();
+      return { kind: "not_logged_in" };
+    }
+    const sameAccount = (await this.api.profile(snapshot.oauth.accessToken)).id === previous;
+    const account = await this.register(sameAccount ? undefined : alias);
     await this.reconcile();
-    return record;
+    return { kind: sameAccount ? "same_account" : "added", account };
+  }
+
+  async assertAliasAvailable(alias: string): Promise<void> {
+    if (!ALIAS_PATTERN.test(alias)) throw new UserError("Alias must be lowercase letters, digits or dashes (max 32).");
+    if ((await this.registry.list()).some((r) => r.alias === alias)) throw new UserError(`Alias "${alias}" is taken.`);
   }
 
   private async loginPendingFor(id: AccountId): Promise<boolean> {

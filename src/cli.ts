@@ -60,15 +60,33 @@ const COMMANDS: Record<string, Command> = {
     usage: "cs add [alias]",
     summary: "Log in to another account (browser) and keep the current one",
     run: async ([alias]) => {
-      const parked = await engine.parkLiveForLogin();
-      if (parked) out(`Keeping ${parked.alias} (${parked.email}). A browser window opens; sign in with the account to add.`);
+      if (alias) await engine.assertAliasAvailable(alias);
       const claude = Bun.which("claude");
       if (!claude) throw new UserError("The `claude` CLI is not on PATH. Install Claude Code first.");
+      const parked = await engine.parkLiveForLogin();
+      if (parked) {
+        out(`Keeping ${parked.alias} (${parked.email}).`);
+        out(`The browser signs in with whichever claude.ai account it is already using. If that is ${parked.email},`);
+        out("copy the login link below into a private window or another browser profile and sign in with the account to add.\n");
+      }
       const code = await Bun.spawn([claude, "auth", "login"], { stdio: ["inherit", "inherit", "inherit"] }).exited;
-      const record = await engine.finishLogin(alias);
-      if (code !== 0 || !record) throw new UserError("Login did not finish. Nothing changed.");
-      if (parked?.id === record.id) out(`Still logged in as ${record.alias}; no new account was added.`);
-      else out(`Added ${record.alias} (${record.email}, ${record.plan}). It is now the active CLI account.`);
+      const result = await engine.finishLogin({ previous: parked?.id ?? null, alias });
+      switch (result.kind) {
+        case "not_logged_in":
+          throw new UserError("Login did not finish. Nothing changed.");
+        case "same_account":
+          throw new UserError(
+            `The browser signed in as ${result.account.email} again, which is already registered as "${result.account.alias}". Nothing was added. Run \`cs add${alias ? ` ${alias}` : ""}\` again and open the login link in a private window signed in to the other account.`,
+          );
+        case "added":
+          if (code !== 0) throw new UserError("Login did not finish. Nothing changed.");
+          out(`Added ${result.account.alias} (${result.account.email}, ${result.account.plan}). It is now the active CLI account.`);
+          return;
+        default: {
+          const _exhaustive: never = result;
+          return _exhaustive;
+        }
+      }
     },
   },
   switch: {
