@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The Usage page in Settings lists every account and Desktop profile with a bar per limit (5-hour, weekly), coloured by the warning and switch levels, and when each one resets.
 - Homebrew: `brew install --cask nurfajarsa/tap/accounts-manager-for-claude`. `scripts/update-cask.sh` takes the checksum from the published release and copies the cask into a tap checkout.
 
 ### Fixed

@@ -650,6 +650,87 @@ struct UsagePane: View {
         } footer: {
             Text("Accounts added with Add Account show live numbers. Other Desktop profiles show what Claude Desktop last recorded while their window was open.")
         }
+        if !overview.accounts.isEmpty {
+            Section("Accounts") {
+                ForEach(overview.accounts) { account in
+                    UsageLimits(
+                        title: account.alias,
+                        badge: account.active ? "In Use" : nil,
+                        detail: account.plan,
+                        windows: account.windows,
+                        footnote: account.problem.map { "Needs sign-in: \($0)" } ?? account.checkedAgo.map { "Checked \($0)" },
+                        overview: overview
+                    )
+                }
+            }
+        }
+        let others = overview.profiles.filter { !$0.registered }
+        if !others.isEmpty {
+            Section("Other Desktop Profiles") {
+                ForEach(others) { profile in
+                    UsageLimits(
+                        title: profile.label,
+                        badge: profile.running ? "Open" : nil,
+                        detail: profile.email,
+                        windows: profile.windows,
+                        footnote: profile.usageAge.map { "Recorded by Claude Desktop \($0)" },
+                        overview: overview
+                    )
+                }
+            }
+        }
+    }
+}
+
+/// One account's limits, each as a bar coloured by the warning and switch levels.
+struct UsageLimits: View {
+    let title: String
+    let badge: String?
+    let detail: String?
+    let windows: [WindowRow]
+    let footnote: String?
+    let overview: Overview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(title).font(.body.weight(.medium))
+                if let badge { StatusBadge(text: badge, color: .accentColor) }
+                Spacer()
+                if let detail { Text(detail).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
+            }
+            if windows.isEmpty {
+                Text("No usage recorded yet").font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(windows, id: \.self) { window in
+                HStack(spacing: 10) {
+                    Text(window.label.prefix(1).uppercased() + window.label.dropFirst())
+                        .font(.callout)
+                        .frame(width: 110, alignment: .leading)
+                    ProgressView(value: Double(min(max(window.percent, 0), 100)), total: 100)
+                        .progressViewStyle(.linear)
+                        .tint(severity(window.percent).tint)
+                    Text("\(window.percent)%")
+                        .font(.callout.monospacedDigit())
+                        .frame(width: 40, alignment: .trailing)
+                    Text(window.resetsIn.map { "resets in \($0)" } ?? "")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 112, alignment: .leading)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(title), \(window.label)")
+                .accessibilityValue("\(window.percent) percent used" + (window.resetsIn.map { ", resets in \($0)" } ?? ""))
+            }
+            if let footnote {
+                Text(footnote).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func severity(_ percent: Int) -> Severity {
+        percent >= overview.threshold ? .critical : percent >= overview.warnAt ? .warn : .ok
     }
 }
 

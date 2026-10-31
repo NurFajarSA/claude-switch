@@ -39,6 +39,6 @@ capture() {
 capture menu-bar.png light ACCOUNTS_MANAGER_PREVIEW_PANEL=1
 capture menu-bar-dark.png dark ACCOUNTS_MANAGER_PREVIEW_PANEL=1
 capture menu-bar-switch.png light ACCOUNTS_MANAGER_PREVIEW_PANEL=1 ACCOUNTS_MANAGER_SNAPSHOT_OTHERS=1
-for pane file in autoSwitch auto-switch rules project-rules profiles desktop-profiles connectors connectors general general; do
+for pane file in autoSwitch auto-switch rules project-rules profiles desktop-profiles connectors connectors general general usage usage; do
   capture "settings-$file.png" light ACCOUNTS_MANAGER_OPEN_SETTINGS=1 -- -settingsPane "$pane"
 done

@@ -193,6 +193,10 @@ Measured on Claude Code 2.1, a CLI login lasts about 28 days from sign-in, and r
 
 Every CLI account and Desktop profile has its own page with usage, sign-in expiry, rename and sign-in actions. Renaming a Desktop profile only changes its display name. The profile folder keeps its name.
 
+<img src="docs/images/settings-usage.png" width="600" alt="Settings window on the Usage pane with the polling interval and, for each account, a bar per limit (5-hour and weekly) with the percent used and when it resets">
+
+The **Usage** page sets how often usage is checked and shows every limit of every account side by side: a bar per limit, coloured by the warning and switch levels, and when it resets.
+
 ## Project rules
 
 A rule maps a folder to the accounts it may use. The deepest matching folder wins. Folders without a rule can use every account. Set rules in **Settings › Project Rules**, or with `cs rules`.
