@@ -4,3 +4,4 @@ macos/.build
 coverage
 *.tgz
 .DS_Store
+.claude/

@@ -1,0 +1,30 @@
+name: Bug report
+description: Something does not work as described
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `cs doctor`
+      description: Remove email addresses before pasting.
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`cs --version`, `claude --version`, Claude Desktop version, macOS version"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant log lines
+      description: From ~/.config/claude-switch/claude-switch.log. It never contains tokens; remove emails.
+      render: text
