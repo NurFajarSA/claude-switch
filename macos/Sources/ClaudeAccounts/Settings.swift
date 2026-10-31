@@ -188,6 +188,7 @@ struct AppIconTile: View {
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous).fill(color.gradient))
+            .accessibilityHidden(true)
     }
 }
 
@@ -326,6 +327,7 @@ struct PercentSlider: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Color.secondary.opacity(0.35)))
+                    .accessibilityHidden(true)
             }
             Slider(value: Binding(get: { draft ?? Double(value) }, set: { draft = $0 }), in: Double(range.lowerBound)...Double(range.upperBound)) {
                 Text(title)
@@ -337,6 +339,7 @@ struct PercentSlider: View {
                 }
             }
             .labelsHidden()
+            .accessibilityValue("\(Int((draft ?? Double(value)).rounded())) percent")
         }
     }
 }
@@ -356,6 +359,7 @@ struct AccountsPane: View {
                         HStack(spacing: 6) {
                             if account.active { StatusBadge(text: "In Use", color: .accentColor) }
                             Text(account.percent.map { "\($0)%" } ?? "–").monospacedDigit()
+                                .accessibilityLabel("\(account.alias), \(usageDescription(account.percent).lowercased())")
                         }
                     } label: {
                         Text(account.alias)
@@ -415,6 +419,7 @@ struct ProfileLink: View {
                 HStack(spacing: 6) {
                     if profile.running { StatusBadge(text: "Open", color: .green) }
                     Text(profile.percent.map { "\($0)%" } ?? "–").monospacedDigit()
+                        .accessibilityLabel("\(profile.label), \(usageDescription(profile.percent).lowercased())")
                 }
             } label: {
                 Text(profile.label)
@@ -454,8 +459,11 @@ struct UsageRows: View {
         ForEach(windows, id: \.self) { window in
             LabeledContent {
                 HStack(spacing: 8) {
-                    ProgressView(value: Double(window.percent), total: 100).frame(width: 90)
-                    Text("\(window.percent)%").monospacedDigit().frame(width: 38, alignment: .trailing)
+                    ProgressView(value: Double(window.percent), total: 100)
+                        .frame(width: 90)
+                        .accessibilityLabel("\(window.label) limit")
+                        .accessibilityValue("\(window.percent) percent used")
+                    Text("\(window.percent)%").monospacedDigit().frame(width: 38, alignment: .trailing).accessibilityHidden(true)
                 }
             } label: {
                 Text(window.label.prefix(1).uppercased() + window.label.dropFirst())

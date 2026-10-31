@@ -16,6 +16,9 @@ struct ClaudeAccountsApp: App {
                 Image(systemName: "gauge.with.dots.needle.50percent")
                 Text(store.headline)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Claude Accounts")
+            .accessibilityValue(store.headline == "–" ? "No usage data" : "\(store.headline) of limit used")
             .task {
                 await Snapshot.runIfRequested(store: store)
                 await store.start()
@@ -113,12 +116,13 @@ struct Panel: View {
                         Row(icon: "arrow.down.circle", highlighted: true, title: "Claude \(version) is ready to install", subtitle: "Click to install and reopen every profile")
                     }
                     .buttonStyle(RowButtonStyle())
+                    .accessibilityHint("Installs the update and reopens every profile.")
                 }
             }
             desktop(overview)
             cli(overview)
         } else if store.loadError == nil {
-            ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(12)
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(12).accessibilityLabel("Loading accounts")
         }
     }
 
@@ -133,7 +137,7 @@ struct Panel: View {
     private var header: some View {
         HStack(spacing: 6) {
             Text("Claude Accounts").font(.system(size: 13, weight: .semibold))
-            if store.busy { ProgressView().controlSize(.mini) }
+            if store.busy { ProgressView().controlSize(.mini).accessibilityLabel("Working") }
             Spacer()
             if let overview = store.overview {
                 Text("Auto-switch at \(overview.threshold)%").font(.system(size: 11)).foregroundStyle(.secondary)
@@ -145,6 +149,7 @@ struct Panel: View {
                 .controlSize(.mini)
                 .labelsHidden()
                 .help("Move to the account with the most usage left when the active one reaches \(overview.threshold)%")
+                .accessibilityHint("Moves to the account with the most usage left when the active one reaches \(overview.threshold) percent.")
             }
         }
         .padding(.horizontal, 6)
@@ -166,9 +171,12 @@ struct Panel: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(showOthers ? 90 : 0))
+                            .accessibilityHidden(true)
                     }
                 }
                 .buttonStyle(RowButtonStyle())
+                .accessibilityValue(showOthers ? "Expanded" : "Collapsed")
+                .accessibilityHint("Shows or hides the profiles that are not set up for the CLI.")
                 .id("others")
                 if showOthers {
                     ForEach(others) { DesktopProfileRow(store: store, profile: $0) }
@@ -188,6 +196,7 @@ struct Panel: View {
                         Row(icon: "plus", highlighted: false, title: "Register This Account", subtitle: current)
                     }
                     .buttonStyle(RowButtonStyle())
+                    .accessibilityHint("Adds the account the CLI is signed in to.")
                 } else {
                     Text("No accounts yet").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
                 }
@@ -238,6 +247,7 @@ struct DesktopProfileRow: View {
             }
         }
         .buttonStyle(RowButtonStyle())
+        .accessibilityHint(profile.running ? "Brings this profile’s window forward." : "Opens this profile’s window.")
         .help(profile.running ? "Window is open. Click to bring it forward." : "Click to open this profile’s window.")
         .contextMenu {
             Button(profile.running ? "Show Window" : "Open Window") { Task { await store.open(profile) } }
@@ -289,6 +299,7 @@ struct CLIAccountRow: View {
             }
         }
         .buttonStyle(RowButtonStyle())
+        .accessibilityHint(account.active ? "This account is already in use by the CLI and VS Code." : "Uses this account in the CLI and VS Code.")
         .help(account.active ? "The CLI and VS Code use this account" : "Click to use this account in the CLI and VS Code")
         .contextMenu {
             if !account.active {
@@ -329,6 +340,7 @@ struct Row<Trailing: View>: View {
                     .foregroundStyle(highlighted ? Color.white : Color.primary.opacity(0.75))
             }
             .frame(width: 26, height: 26)
+            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 Text(subtitle)
@@ -341,6 +353,7 @@ struct Row<Trailing: View>: View {
             trailing()
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -389,7 +402,12 @@ struct ActionRow: View {
     }
 }
 
+func usageDescription(_ percent: Int?) -> String {
+    percent.map { "\($0) percent of limit used" } ?? "Usage unknown"
+}
+
 struct UsageMeter: View {
+    var name: String?
     let percent: Int?
     let severity: Severity
 
@@ -411,6 +429,9 @@ struct UsageMeter: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 34, alignment: .trailing)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name ?? "Usage")
+        .accessibilityValue(usageDescription(percent))
     }
 }
 
