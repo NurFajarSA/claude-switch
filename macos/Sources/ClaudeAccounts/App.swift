@@ -9,6 +9,7 @@ struct ClaudeAccountsApp: App {
         MenuBarExtra {
             Panel(store: store)
                 .frame(width: 320)
+                .background(RoundedWindow(radius: Panel.windowRadius))
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "gauge.with.dots.needle.50percent")
@@ -30,6 +31,9 @@ struct Panel: View {
     @State private var showOthers = false
 
     private static let maxListHeight: CGFloat = 470
+    static let edge: CGFloat = 8
+    static let moduleRadius: CGFloat = 14
+    static let windowRadius: CGFloat = moduleRadius + edge
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -68,7 +72,7 @@ struct Panel: View {
                 ActionRow(title: "Keluar Claude Accounts") { NSApplication.shared.terminate(nil) }
             }
         }
-        .padding(10)
+        .padding(Self.edge)
     }
 
     @ViewBuilder
@@ -192,8 +196,8 @@ struct Module<Content: View>: View {
         }
         .padding(4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Panel.moduleRadius, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Panel.moduleRadius, style: .continuous).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
     }
 }
 
