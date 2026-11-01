@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-01
+
 ### Added
 
 - Profile picker: opening Accounts Manager from the Dock, Finder or Spotlight shows a Chrome-style window with every Claude Desktop profile, its account and usage; one click opens that profile's window. Also under **Choose Profile…** in the menu bar. It stays hidden when the app starts at login (the launch agent passes `--at-login`; run `cs install` again to update it) and can be turned off from its own checkbox.
@@ -47,6 +49,7 @@ First release.
 - Release packaging: `scripts/package-release.sh` builds a zip of the app and a tarball of `cs`, with optional Developer ID signing and notarization, and a Homebrew cask template.
 - `scripts/screenshots.sh` regenerates the README screenshots from anonymised fixtures in `scripts/demo`.
 
-[Unreleased]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/NurFajarSA/claude-switch/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NurFajarSA/claude-switch/releases/tag/v1.0.0
