@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Profile picker: opening Accounts Manager from the Dock, Finder or Spotlight shows a Chrome-style window with every Claude Desktop profile, its account and usage; one click opens that profile's window. Also under **Choose Profile…** in the menu bar. It stays hidden when the app starts at login (the launch agent passes `--at-login`; run `cs install` again to update it) and can be turned off from its own checkbox.
+
 ## [1.0.1] - 2026-11-01
 
 ### Added

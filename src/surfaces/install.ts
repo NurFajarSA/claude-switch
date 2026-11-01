@@ -83,7 +83,7 @@ export async function install({ paths, sourceBinary, app }: { paths: Paths; sour
       if (!inPlace) await cp(app, target, { recursive: true });
       await unquarantine(target);
       const plist = join(l.launchAgents, `${APP_LABEL}.plist`);
-      await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", target], { keepAlive: false, log: paths.logFile });
+      await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", target, "--args", "--at-login"], { keepAlive: false, log: paths.logFile });
       await reloadAgent(plist, APP_LABEL);
       return `${target} (opens at login)`;
     });
@@ -126,7 +126,7 @@ export async function setLoginItem({ paths, enabled }: { paths: Paths; enabled: 
   if (enabled) {
     const app = await installedApp(l);
     if (!app) throw new Error(`${APP_NAME} is not installed in ${l.appDir} or ${SYSTEM_APP_DIR}`);
-    await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", app], { keepAlive: false, log: paths.logFile });
+    await writeLaunchAgent(plist, APP_LABEL, ["/usr/bin/open", "-a", app, "--args", "--at-login"], { keepAlive: false, log: paths.logFile });
   } else {
     await sh(["/bin/launchctl", "bootout", `gui/${process.getuid?.() ?? 501}/${APP_LABEL}`], { allowFailure: true });
     await rm(plist, { force: true });

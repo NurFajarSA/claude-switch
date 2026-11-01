@@ -28,6 +28,7 @@ A long agent run on one subscription stops when that subscription reaches its 5-
 **Menu bar app**
 - One row per Claude Desktop profile and per CLI account, each with a usage bar and its reset time.
 - The CLI section shows the account in use. The other accounts sit behind **Switch Account**, sorted by usage left.
+- A profile picker, like Chrome's: opening the app from the Dock, Finder or Spotlight shows every Desktop profile with its account and usage, and one click opens that window.
 - Click a Desktop row to open or focus that window. Right-click a row to rename it, sign in again, or move a recent session into it.
 - A Settings window in the System Settings style, and a setup assistant on first run.
 - Notifications when the CLI account switches, when an account crosses the warning level, and when a sign-in has three days or less left.
@@ -61,6 +62,17 @@ A long agent run on one subscription stops when that subscription reaches its 5-
 You start a refactor in the terminal on `work`. At 95%, the hook switches the CLI login to the account with the most usage left before your next prompt. The session continues in the same terminal with the same MCP servers. A notification says which account took over.
 
 The same happens in Claude Desktop. The hook copies the session to the profile with the most usage left, preferring a profile whose window is closed, and opens that window. Claude answers the current message and tells you to continue there.
+
+### Pick which Claude to open
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/profile-picker-dark.png">
+    <img src="docs/images/profile-picker.png" width="600" alt="Profile picker window titled Which Claude do you want to open, with a card per Claude Desktop profile showing an initial, the account email and a usage bar, a green dot on profiles whose window is open, and an Add Account card">
+  </picture>
+</p>
+
+Open Accounts Manager from the Dock, Finder or Spotlight and it asks which Claude to open, the way Chrome asks which profile. Each card shows the profile's account, how much of its limit is used, and a green dot when its window is already open. Click one to open it or bring it forward. It also opens from **Choose Profile…** in the menu bar. It stays hidden when the app starts at login, and the checkbox at the bottom turns it off when the app opens.
 
 ### Several Desktop profiles open at once
 
@@ -330,6 +342,7 @@ The app reads these environment variables at launch:
 | `ACCOUNTS_MANAGER_APPEARANCE=light\|dark` | Forces the app's appearance |
 | `ACCOUNTS_MANAGER_OPEN_SETTINGS=1` | Opens the Settings window at launch; add `-settingsPane rules` (or another pane) to pick the page |
 | `ACCOUNTS_MANAGER_OPEN_ONBOARDING=1` | Opens the setup assistant at launch |
+| `ACCOUNTS_MANAGER_OPEN_PICKER=1` | Opens the profile picker at launch; any other `ACCOUNTS_MANAGER_*` variable keeps it closed |
 
 The screenshots in `docs/images` come from anonymised fixtures in `scripts/demo`, served by a stand-in `cs`. To regenerate them after a UI change, build the app and run:
 

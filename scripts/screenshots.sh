@@ -24,14 +24,21 @@ capture() {
   local env_args=() app_args=()
   while (( $# )) && [[ $1 != -- ]]; do env_args+=("$1"); shift; done
   (( $# )) && shift && app_args=("$@")
-  env ACCOUNTS_MANAGER_APPEARANCE=$appearance "${env_args[@]}" "$app" -AppleLanguages "(en)" -AppleLocale en_US "${app_args[@]}" >/dev/null 2>&1 &
+  env ACCOUNTS_MANAGER_APPEARANCE=$appearance "${env_args[@]}" "$app" -AppleLanguages "(en)" -AppleLocale en_US -ApplePersistenceIgnoreState YES "${app_args[@]}" >/dev/null 2>&1 &
   local pid=$! window=""
   for _ in {1..20}; do
     sleep 0.5
     window=$("$work/window-id" "$pid" 2>/dev/null) && break
   done
   sleep 1.5
-  if [[ -n $window ]]; then screencapture -x -l "$window" "$out/$file" && echo "$out/$file"; else echo "no window for $file" >&2; fi
+  if [[ -n $window ]]; then
+    screencapture -x -l "${window% *}" "$out/$file" && echo "$out/$file"
+    # A window on a Retina screen comes out at 2x; keep every picture at 1x so they match.
+    local pixels=$(sips -g pixelWidth "$out/$file" | awk '/pixelWidth/{print $2}')
+    (( pixels >= 2 * ${window#* } )) && sips --resampleWidth $(( pixels / 2 )) "$out/$file" >/dev/null
+  else
+    echo "no window for $file" >&2
+  fi
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
 }
@@ -39,6 +46,8 @@ capture() {
 capture menu-bar.png light ACCOUNTS_MANAGER_PREVIEW_PANEL=1
 capture menu-bar-dark.png dark ACCOUNTS_MANAGER_PREVIEW_PANEL=1
 capture menu-bar-switch.png light ACCOUNTS_MANAGER_PREVIEW_PANEL=1 ACCOUNTS_MANAGER_SNAPSHOT_OTHERS=1
+capture profile-picker.png light ACCOUNTS_MANAGER_OPEN_PICKER=1
+capture profile-picker-dark.png dark ACCOUNTS_MANAGER_OPEN_PICKER=1
 for pane file in autoSwitch auto-switch rules project-rules profiles desktop-profiles connectors connectors general general usage usage; do
   capture "settings-$file.png" light ACCOUNTS_MANAGER_OPEN_SETTINGS=1 -- -settingsPane "$pane"
 done

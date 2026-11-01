@@ -1,8 +1,17 @@
 import AppKit
 import SwiftUI
 
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Clicking the Dock icon, or opening the app again from Finder or Spotlight, shows the profile picker.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        NotificationCenter.default.post(name: .showProfilePicker, object: nil)
+        return true
+    }
+}
+
 @main
 struct AccountsManagerApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var store = Store()
     @Environment(\.openWindow) private var openWindow
 
@@ -22,11 +31,17 @@ struct AccountsManagerApp: App {
             .task {
                 await Snapshot.runIfRequested(store: store)
                 await Snapshot.previewIfRequested(store: store)
-                await store.start()
                 let environment = ProcessInfo.processInfo.environment
+                let developerLaunch = environment.keys.contains { $0.hasPrefix("ACCOUNTS_MANAGER_") }
+                if environment["ACCOUNTS_MANAGER_OPEN_PICKER"] == "1"
+                    || (!developerLaunch && !ProfilePicker.launchedAtLogin && ProfilePicker.showOnLaunch) {
+                    showPicker()
+                }
+                await store.start()
                 if environment["ACCOUNTS_MANAGER_OPEN_SETTINGS"] == "1" { openWindow(id: "settings") }
                 if environment["ACCOUNTS_MANAGER_OPEN_ONBOARDING"] == "1" || store.shouldAutoShowOnboarding { openWindow(id: "onboarding") }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showProfilePicker)) { _ in showPicker() }
         }
         .menuBarExtraStyle(.window)
 
@@ -36,11 +51,23 @@ struct AccountsManagerApp: App {
         .defaultSize(width: 760, height: 540)
         .defaultPosition(.center)
 
+        Window("Choose a Claude Profile", id: ProfilePicker.windowID) {
+            ProfilePickerView(store: store)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 760, height: 660)
+        .defaultPosition(.center)
+
         Window("Welcome to Accounts Manager for Claude", id: "onboarding") {
             OnboardingView(store: store)
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+    }
+
+    private func showPicker() {
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: ProfilePicker.windowID)
     }
 }
 
@@ -96,6 +123,10 @@ struct Panel: View {
             Module {
                 ActionRow(title: "Refresh Usage") { Task { await store.refreshLive() } }
                 ActionRow(title: "Add Account…") { store.addAccount() }
+                ActionRow(title: "Choose Profile…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: ProfilePicker.windowID)
+                }
                 ActionRow(title: "Settings…") {
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "settings")
