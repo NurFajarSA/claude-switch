@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-02
+
 ### Fixed
 
 - `cs link` (and the app's **Link CLI** button), `cs login` and `cs relogin` no longer stop with "Unexpected error: /api/oauth/profile: 401" when the CLI's current login has expired or was revoked. The old login is still saved when its account is registered; otherwise that step is skipped and the browser sign-in goes ahead.
@@ -53,7 +55,8 @@ First release.
 - Release packaging: `scripts/package-release.sh` builds a zip of the app and a tarball of `cs`, with optional Developer ID signing and notarization, and a Homebrew cask template.
 - `scripts/screenshots.sh` regenerates the README screenshots from anonymised fixtures in `scripts/demo`.
 
-[Unreleased]: https://github.com/NurFajarSA/claude-switch/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/NurFajarSA/claude-switch/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/NurFajarSA/claude-switch/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/NurFajarSA/claude-switch/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NurFajarSA/claude-switch/releases/tag/v1.0.0
