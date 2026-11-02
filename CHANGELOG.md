@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `cs link` (and the app's **Link CLI** button), `cs login` and `cs relogin` no longer stop with "Unexpected error: /api/oauth/profile: 401" when the CLI's current login has expired or was revoked. The old login is still saved when its account is registered; otherwise that step is skipped and the browser sign-in goes ahead.
+
 ## [1.1.0] - 2026-11-01
 
 ### Added

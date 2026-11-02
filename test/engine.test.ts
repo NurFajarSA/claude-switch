@@ -78,6 +78,27 @@ describe("adding accounts through login", () => {
     expect((await t.parked(A.id)).refreshToken).toStartWith("rt-acct-a");
   });
 
+  test("an expired CLI login of a registered account is still parked so linking can go ahead", async () => {
+    const t = await setup();
+    t.api.add(A);
+    await t.login(A.id);
+    await t.engine.register();
+    t.advance(9 * HOUR);
+
+    const parked = await t.newEngine().parkLiveForLogin();
+
+    expect(parked?.id as string | undefined).toBe("acct-a");
+  });
+
+  test("a CLI login the server no longer knows is skipped instead of failing the next login", async () => {
+    const t = await setup();
+    t.api.add(A);
+    await t.login(A.id);
+    t.api.tokens.clear();
+
+    expect(await t.newEngine().parkLiveForLogin()).toBeNull();
+  });
+
   test("rejects a taken alias before any login starts", async () => {
     const t = await withAccounts(A, B);
     await expect(t.engine.assertAliasAvailable("kantor")).rejects.toThrow("taken");

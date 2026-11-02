@@ -145,8 +145,18 @@ export class Engine {
     return this.locked(async () => {
       const snapshot = await this.live.read();
       if (!snapshot?.oauth) return null;
-      const profile = await this.api.profile(snapshot.oauth.accessToken);
-      const record = await this.upsertLive(profile);
+      // An expired or revoked CLI login must not block signing in again, so identify it leniently.
+      const live = await this.identify(snapshot);
+      const record = live
+        ? await this.upsertLiveFromIdentity(live, await this.registry.list()).catch((err) => {
+            if (err instanceof UserError) return null;
+            throw err;
+          })
+        : null;
+      if (!record) {
+        this.log.warn("park_skipped_unidentified_live", {});
+        return null;
+      }
       await this.vault.put(record.id, snapshot.oauth);
       await writeJsonAtomic(this.paths.loginPendingFile, { accountId: record.id, startedAt: this.now() });
       this.log.info("parked_for_login", { account: record.id });
