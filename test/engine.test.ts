@@ -116,6 +116,51 @@ describe("adding accounts through login", () => {
   });
 });
 
+describe("needs-login flag", () => {
+  const healthOf = async (t: Awaited<ReturnType<typeof withAccounts>>, id: string) =>
+    (await t.newEngine().status()).accounts.find((a) => a.record.id === id)?.record.health;
+
+  test("a Keychain miss flags a parked account and the flag clears once the credential is readable again", async () => {
+    const t = await withAccounts(A, B);
+    const stored = await t.secrets.get("vault", A.id);
+    await t.secrets.delete("vault", A.id);
+
+    await t.newEngine().reconcile();
+    expect((await healthOf(t, A.id))?.kind).toBe("needs_login");
+
+    await t.secrets.set("vault", A.id, stored!);
+    const records = await t.newEngine().pollAll();
+
+    expect((await healthOf(t, A.id))?.kind).toBe("ok");
+    expect(records.find((r) => r.accountId === A.id)?.error).toBeNull();
+    expect(records.find((r) => r.accountId === A.id)?.reading?.windows[0]?.percent).toBe(96);
+  });
+
+  test("the flag clears when the flagged account becomes the live one", async () => {
+    const t = await withAccounts(A, B);
+    const stored = await t.secrets.get("vault", A.id);
+    await t.secrets.delete("vault", A.id);
+    await t.newEngine().reconcile();
+    await t.secrets.set("vault", A.id, stored!);
+
+    await t.engine.switchTo("kantor");
+    await t.newEngine().reconcile();
+
+    expect((await healthOf(t, A.id))?.kind).toBe("ok");
+  });
+
+  test("a rejected refresh token stays flagged even though its credential is still stored", async () => {
+    const t = await withAccounts(A, B);
+    t.advance(8 * HOUR);
+    t.api.revokedRefresh.add((await t.parked(A.id)).refreshToken);
+    await expect(t.engine.switchTo("kantor")).rejects.toThrow("expired");
+
+    await t.newEngine().pollAll();
+
+    expect(await healthOf(t, A.id)).toMatchObject({ kind: "needs_login", reason: "refresh token rejected" });
+  });
+});
+
 describe("switch", () => {
   test("installs the target credential, parks the previous one and keeps MCP OAuth tokens", async () => {
     const t = await withAccounts(A, B);

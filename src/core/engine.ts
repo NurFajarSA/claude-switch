@@ -32,6 +32,12 @@ import {
 const REFRESH_MARGIN_MS = 5 * 60_000;
 const IDENTITY_CACHE_SIZE = 32;
 const POLL_SPACING_MS = 1500;
+const NO_STORED_CREDENTIAL = "no stored credential; log in again with `cs add`";
+
+/** True for the reasons reconcile/switch use when the vault had no credential (older builds used a shorter text). */
+function isMissingCredentialReason(reason: string): boolean {
+  return reason.startsWith("no stored credential");
+}
 
 function tokenKey(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -257,10 +263,28 @@ export class Engine {
       let changed = false;
       const next = await Promise.all(
         records.map(async (record) => {
-          if (record.id === live?.id || record.health.kind !== "ok") return record;
-          if (await this.vault.get(record.id)) return record;
-          changed = true;
-          return this.withHealth(record, "no stored credential; log in again with `cs add`");
+          if (record.id === live?.id) {
+            // Claude Code is using this account right now, so whatever flagged it earlier no longer applies.
+            if (record.health.kind === "ok") return record;
+            changed = true;
+            this.log.info("health_restored", { account: record.id, was: record.health.reason, via: "live" });
+            return { ...record, health: { kind: "ok" as const } };
+          }
+          const stored = await this.vault.get(record.id);
+          if (record.health.kind === "ok") {
+            if (stored) return record;
+            changed = true;
+            this.log.warn("needs_login", { account: record.id, reason: NO_STORED_CREDENTIAL });
+            return this.withHealth(record, NO_STORED_CREDENTIAL);
+          }
+          // A missing credential can be a transient Keychain miss (locked keychain, daemon started before login).
+          // Once the credential is readable again the flag must clear, or the account stays "needs login" forever.
+          if (stored && isMissingCredentialReason(record.health.reason)) {
+            changed = true;
+            this.log.info("health_restored", { account: record.id, was: record.health.reason, via: "vault" });
+            return { ...record, health: { kind: "ok" as const } };
+          }
+          return record;
         }),
       );
       if (changed) await this.registry.save(next);
@@ -319,7 +343,7 @@ export class Engine {
   private async freshParked(record: AccountRecord): Promise<OAuthCredential> {
     const stored = await this.vault.get(record.id);
     if (!stored) {
-      await this.markNeedsLogin(record.id, "no stored credential");
+      await this.markNeedsLogin(record.id, NO_STORED_CREDENTIAL);
       throw new UserError(`No stored login for "${record.alias}". Log in again with \`cs add\`.`);
     }
     if (stored.expiresAt - this.now() > REFRESH_MARGIN_MS) return stored;
